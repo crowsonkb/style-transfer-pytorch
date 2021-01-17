@@ -14,8 +14,6 @@ from torch.nn import functional as F
 from torchvision import models, transforms
 from torchvision.transforms import functional as TF
 
-warnings.simplefilter('ignore', UserWarning)
-
 
 class VGGFeatures(nn.Module):
     def __init__(self, layers):
@@ -159,6 +157,8 @@ def scale_adam(state, shape):
 
 
 def main():
+    warnings.simplefilter('ignore', UserWarning)
+
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     p.add_argument('content', type=Path, help='the content image')

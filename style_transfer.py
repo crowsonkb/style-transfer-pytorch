@@ -143,7 +143,7 @@ def size_to_fit(size, max_dim, scale_up=False):
 
 def scales(start, n):
     for i in range(n):
-        yield round(start * pow(2, 1/2)**i)
+        yield round(start * pow(2, i/2))
 
 
 def scale_adam(state, shape):

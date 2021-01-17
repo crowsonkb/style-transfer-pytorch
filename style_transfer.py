@@ -179,8 +179,7 @@ def main():
     p.add_argument('style', type=Path, help='the style image')
     p.add_argument('output', type=Path, nargs='?', default=Path('out.png'),
                    help='the output image')
-    p.add_argument('--device', type=str, default=None,
-                   help='the device name to use')
+    p.add_argument('--device', type=str, help='the device name to use (omit for auto)')
     p.add_argument('--content-weight', '-cw', type=float, default=0.01,
                    help='the content weight')
     p.add_argument('--tv-weight', '-tw', type=float, default=2e-7,
@@ -190,6 +189,8 @@ def main():
     p.add_argument('--scales', '-s', type=int, default=7, help='the number of scales')
     p.add_argument('--iterations', '-i', type=int, default=500,
                    help='the number of iterations per scale')
+    p.add_argument('--step-size', '-ss', type=float, default=0.02,
+                   help='the step size (learning rate)')
     args = p.parse_args()
 
     content_img = load_image(args.content)
@@ -257,7 +258,7 @@ def main():
             crit = WeightedLoss([*content_losses, *style_losses, tv_loss],
                                 [*content_weights, *style_weights, args.tv_weight])
 
-            opt = optim.Adam([image], lr=5/255)
+            opt = optim.Adam([image], lr=args.step_size)
 
             # if scale != args.initial_scale:
             #     opt_state = scale_adam(opt.state_dict(), (ch, cw))

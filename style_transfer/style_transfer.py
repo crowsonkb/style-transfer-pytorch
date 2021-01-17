@@ -195,6 +195,8 @@ class StyleTransfer:
             self.image = torch.rand([1, 3, ch, cw]) / 255 + 0.5
         self.image = self.image.to(self.device)
 
+        opt = None
+
         for scale in gen_scales(initial_scale, scales):
             cw, ch = size_to_fit(content_img.size, scale, scale_up=True)
             sw, sh = size_to_fit(style_img.size, scale)
@@ -227,11 +229,11 @@ class StyleTransfer:
             crit = WeightedLoss([*content_losses, *style_losses, tv_loss],
                                 [*content_weights, *self.style_weights, tv_weight])
 
-            opt = optim.Adam([self.image], lr=step_size)
-
-            # if scale != initial_scale:
-            #     opt_state = scale_adam(opt.state_dict(), (ch, cw))
-            #     opt.load_state_dict(opt_state)
+            opt2 = optim.Adam([self.image], lr=step_size)
+            if scale != initial_scale:
+                opt_state = scale_adam(opt.state_dict(), (ch, cw))
+                opt2.load_state_dict(opt_state)
+            opt = opt2
 
             for i in trange(1, iterations + 1):
                 feats = self.model(self.image)

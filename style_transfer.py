@@ -5,6 +5,7 @@
 import argparse
 import copy
 from pathlib import Path
+import sys
 import warnings
 
 from PIL import Image
@@ -156,7 +157,16 @@ def scale_adam(state, shape):
     return state
 
 
+def setup_exceptions():
+    try:
+        from IPython.core.ultratb import AutoFormattedTB
+        sys.excepthook = AutoFormattedTB(mode='Plain', color_scheme='Neutral')
+    except ImportError:
+        pass
+
+
 def main():
+    setup_exceptions()
     warnings.simplefilter('ignore', UserWarning)
 
     p = argparse.ArgumentParser(description=__doc__,

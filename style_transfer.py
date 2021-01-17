@@ -130,10 +130,6 @@ def load_image(path):
     return Image.open(path).convert('RGB')
 
 
-def save_image_t(input, path, **kwargs):
-    TF.to_pil_image(input).save(path, **kwargs)
-
-
 def size_to_fit(size, max_dim, scale_up=False):
     w, h = size
     if not scale_up and max(h, w) <= max_dim:
@@ -146,9 +142,15 @@ def size_to_fit(size, max_dim, scale_up=False):
     return new_w, new_h
 
 
-def scales(start, n):
+def gen_scales(start, n):
     for i in range(n):
         yield round(start * pow(2, i/2))
+
+
+def interpolate(*args, **kwargs):
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore', UserWarning)
+        return F.interpolate(*args, **kwargs)
 
 
 def scale_adam(state, shape):
@@ -156,8 +158,8 @@ def scale_adam(state, shape):
     for group in state['state'].values():
         exp_avg = group['exp_avg']
         exp_avg_sq = group['exp_avg_sq']
-        group['exp_avg'] = F.interpolate(exp_avg, shape, mode='bicubic')
-        group['exp_avg_sq'] = F.interpolate(exp_avg_sq, shape, mode='bilinear')
+        group['exp_avg'] = interpolate(exp_avg, shape, mode='bicubic')
+        group['exp_avg_sq'] = interpolate(exp_avg_sq, shape, mode='bilinear')
         group['exp_avg_sq'].relu_()
     return state
 
@@ -170,27 +172,126 @@ def setup_exceptions():
         pass
 
 
+class StyleTransfer:
+    def __init__(self, device='cpu'):
+        self.device = torch.device(device)
+        self.image = None
+
+        self.content_layers = [22]
+
+        self.style_layers = [1, 6, 11, 20, 29]
+        style_weights = [256, 64, 16, 4, 1]
+        weight_sum = sum(abs(w) for w in style_weights)
+        self.style_weights = [w / weight_sum for w in style_weights]
+
+        self.model = VGGFeatures(self.style_layers + self.content_layers).to(self.device)
+
+    def get_image(self):
+        if self.image is not None:
+            return TF.to_pil_image(self.image[0])
+
+    def stylize(self, content_img: Image.Image,
+                style_img: Image.Image, *,
+                content_weight: float = 0.01,
+                tv_weight: float = 2e-7,
+                initial_scale: int = 64,
+                scales: int = 7,
+                iterations: int = 500,
+                step_size: float = 0.02):
+
+        content_weights = [content_weight / len(self.content_layers)] * len(self.content_layers)
+
+        tv_loss = LayerApply(TVLoss(), 'input')
+
+        init_with_content = True
+
+        cw, ch = size_to_fit(content_img.size, initial_scale, scale_up=True)
+        if init_with_content:
+            self.image = TF.to_tensor(content_img.resize((cw, ch), Image.LANCZOS))[None]
+        else:
+            self.image = torch.rand([1, 3, ch, cw]) / 255 + 0.5
+        self.image = self.image.to(self.device)
+
+        for scale in gen_scales(initial_scale, scales):
+            cw, ch = size_to_fit(content_img.size, scale, scale_up=True)
+            sw, sh = size_to_fit(style_img.size, scale)
+
+            content = TF.to_tensor(content_img.resize((cw, ch), Image.LANCZOS))[None]
+            style = TF.to_tensor(style_img.resize((sw, sh), Image.LANCZOS))[None]
+            content, style = content.to(self.device), style.to(self.device)
+
+            self.image = interpolate(self.image.detach(), (ch, cw), mode='bicubic').clamp(0, 1)
+            self.image.requires_grad_()
+
+            print(f'Processing content image ({cw}x{ch})...')
+            content_feats = self.model(content, layers=self.content_layers)
+            content_losses = []
+            for i, layer in enumerate(self.content_layers):
+                weight = content_weights[i]
+                target = content_feats[layer]
+                loss = LayerApply(Normalize(ContentLoss(target), weight), layer)
+                content_losses.append(loss)
+
+            print(f'Processing style image ({sw}x{sh})...')
+            style_feats = self.model(style, layers=self.style_layers)
+            style_losses = []
+            for i, layer in enumerate(self.style_layers):
+                weight = self.style_weights[i]
+                target = StyleLoss.get_target(style_feats[layer])
+                loss = LayerApply(Normalize(StyleLoss(target), weight), layer)
+                style_losses.append(loss)
+
+            crit = WeightedLoss([*content_losses, *style_losses, tv_loss],
+                                [*content_weights, *self.style_weights, tv_weight])
+
+            opt = optim.Adam([self.image], lr=step_size)
+
+            # if scale != initial_scale:
+            #     opt_state = scale_adam(opt.state_dict(), (ch, cw))
+            #     opt.load_state_dict(opt_state)
+
+            for i in trange(1, iterations + 1):
+                feats = self.model(self.image)
+                feats['input'] = self.image
+                loss = crit(feats)
+                tqdm.write(f'{i} {loss.item() / self.image.numel():g}')
+                opt.zero_grad()
+                loss.backward()
+                opt.step()
+                with torch.no_grad():
+                    self.image.clamp_(0, 1)
+
+        return self.get_image()
+
+
 def main():
     setup_exceptions()
-    warnings.simplefilter('ignore', UserWarning)
 
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+    defaults = StyleTransfer.stylize.__kwdefaults__
+    default_types = StyleTransfer.stylize.__annotations__
+
+    def arg_info(arg):
+        return {'default': defaults[arg], 'type': default_types[arg]}
+
     p.add_argument('content', type=Path, help='the content image')
     p.add_argument('style', type=Path, help='the style image')
     p.add_argument('output', type=Path, nargs='?', default=Path('out.png'),
                    help='the output image')
     p.add_argument('--device', type=str, help='the device name to use (omit for auto)')
-    p.add_argument('--content-weight', '-cw', type=float, default=0.01,
+    p.add_argument('--content-weight', '-cw', **arg_info('content_weight'),
                    help='the content weight')
-    p.add_argument('--tv-weight', '-tw', type=float, default=2e-7,
+    p.add_argument('--tv-weight', '-tw', **arg_info('tv_weight'),
                    help='the smoothing weight')
-    p.add_argument('--initial-scale', '-is', type=int, default=64,
+    p.add_argument('--initial-scale', '-is', **arg_info('initial_scale'),
                    help='the initial scale, in pixels')
-    p.add_argument('--scales', '-s', type=int, default=7, help='the number of scales')
-    p.add_argument('--iterations', '-i', type=int, default=500,
+    p.add_argument('--scales', '-s', **arg_info('scales'),
+                   help='the number of scales')
+    p.add_argument('--iterations', '-i', **arg_info('iterations'),
                    help='the number of iterations per scale')
-    p.add_argument('--step-size', '-ss', type=float, default=0.02,
+    p.add_argument('--step-size', '-ss', **arg_info('step_size'),
                    help='the step size (learning rate)')
     args = p.parse_args()
 
@@ -204,83 +305,19 @@ def main():
     print('Using device:', device)
     torch.tensor(0).to(device)
 
-    content_layers = [22]
-    content_weights = [args.content_weight / len(content_layers)] * len(content_layers)
-
-    style_layers = [1, 6, 11, 20, 29]
-    style_weights = [256, 64, 16, 4, 1]
-    weight_sum = sum(abs(w) for w in style_weights)
-    style_weights = [w / weight_sum for w in style_weights]
-
-    tv_loss = LayerApply(TVLoss(), 'input')
-
     print('Loading model...')
-    model = VGGFeatures(layers=style_layers + content_layers).to(device)
-
-    init_with_content = True
-
-    cw, ch = size_to_fit(content_img.size, args.initial_scale, scale_up=True)
-    if init_with_content:
-        image = TF.to_tensor(content_img.resize((cw, ch), Image.LANCZOS))[None]
-    else:
-        image = torch.rand([1, 3, ch, cw]) / 255 + 0.5
-    image = image.to(device)
+    st = StyleTransfer(device=device)
+    st_kwargs = {k: v for k, v in args.__dict__.items() if k in defaults}
 
     try:
-        for scale in scales(args.initial_scale, args.scales):
-            cw, ch = size_to_fit(content_img.size, scale, scale_up=True)
-            sw, sh = size_to_fit(style_img.size, scale)
-
-            content = TF.to_tensor(content_img.resize((cw, ch), Image.LANCZOS))[None]
-            style = TF.to_tensor(style_img.resize((sw, sh), Image.LANCZOS))[None]
-            content, style = content.to(device), style.to(device)
-
-            image = F.interpolate(image.detach(), (ch, cw), mode='bicubic').clamp(0, 1)
-            image.requires_grad_()
-
-            print(f'Processing content image ({cw}x{ch})...')
-            content_feats = model(content, layers=content_layers)
-            content_losses = []
-            for i, layer in enumerate(content_layers):
-                weight = content_weights[i]
-                target = content_feats[layer]
-                loss = LayerApply(Normalize(ContentLoss(target), weight), layer)
-                content_losses.append(loss)
-
-            print(f'Processing style image ({sw}x{sh})...')
-            style_feats = model(style, layers=style_layers)
-            style_losses = []
-            for i, layer in enumerate(style_layers):
-                weight = style_weights[i]
-                target = StyleLoss.get_target(style_feats[layer])
-                loss = LayerApply(Normalize(StyleLoss(target), weight), layer)
-                style_losses.append(loss)
-
-            crit = WeightedLoss([*content_losses, *style_losses, tv_loss],
-                                [*content_weights, *style_weights, args.tv_weight])
-
-            opt = optim.Adam([image], lr=args.step_size)
-
-            # if scale != args.initial_scale:
-            #     opt_state = scale_adam(opt.state_dict(), (ch, cw))
-            #     opt.load_state_dict(opt_state)
-
-            for i in trange(1, args.iterations + 1):
-                feats = model(image)
-                feats['input'] = image
-                loss = crit(feats)
-                tqdm.write(f'{i} {loss.item() / image.numel():g}')
-                opt.zero_grad()
-                loss.backward()
-                opt.step()
-                with torch.no_grad():
-                    image.clamp_(0, 1)
-
+        st.stylize(content_img, style_img, **st_kwargs)
     except KeyboardInterrupt:
         pass
 
-    print(f'Writing image to {args.output}.')
-    save_image_t(image[0], args.output)
+    output_image = st.get_image()
+    if output_image is not None:
+        print(f'Writing image to {args.output}.')
+        output_image.save(args.output)
 
 
 if __name__ == '__main__':

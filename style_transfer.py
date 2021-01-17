@@ -14,6 +14,7 @@ from torch import optim, nn
 from torch.nn import functional as F
 from torchvision import models, transforms
 from torchvision.transforms import functional as TF
+from tqdm import tqdm, trange
 
 
 class VGGFeatures(nn.Module):
@@ -256,11 +257,11 @@ def main():
             #     opt_state = scale_adam(opt.state_dict(), (ch, cw))
             #     opt.load_state_dict(opt_state)
 
-            for i in range(1, 501):
+            for i in trange(1, 501):
                 feats = model(image)
                 feats['input'] = image
                 loss = crit(feats)
-                print(f'{i} {loss.item() / image.numel():g}')
+                tqdm.write(f'{i} {loss.item() / image.numel():g}')
                 opt.zero_grad()
                 loss.backward()
                 opt.step()

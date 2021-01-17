@@ -62,6 +62,7 @@ class StyleLoss(nn.Module):
 
 class TVLoss(nn.Module):
     def forward(self, input):
+        input = F.pad(input, (0, 1, 0, 1), 'replicate')
         x_diff = input[..., :-1, :-1] - input[..., :-1, 1:]
         y_diff = input[..., :-1, :-1] - input[..., 1:, :-1]
         diff = x_diff**2 + y_diff**2

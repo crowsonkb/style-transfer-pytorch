@@ -102,8 +102,8 @@ class Normalize(nn.Module):
     def _hook(self, module, grad_input, grad_output):
         i, *rest = grad_input
         dims = list(range(1, i.ndim))
-        norm = abs(i).sum(dim=dims, keepdims=True) + self.eps
-        return i * self.scale / norm, *rest
+        norm = abs(i).sum(dim=dims, keepdims=True)
+        return i * self.scale / (norm + self.eps), *rest
 
     def extra_repr(self):
         return f'scale={self.scale!r}'

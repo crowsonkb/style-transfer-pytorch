@@ -182,7 +182,11 @@ def main():
                    help='the content weight')
     p.add_argument('--tv-weight', '-tw', type=float, default=2e-7,
                    help='the smoothing weight')
-
+    p.add_argument('--initial-scale', '-is', type=int, default=64,
+                   help='the initial scale, in pixels')
+    p.add_argument('--scales', '-s', type=int, default=7, help='the number of scales')
+    p.add_argument('--iterations', '-i', type=int, default=500,
+                   help='the number of iterations per scale')
     args = p.parse_args()
 
     content_img = load_image(args.content)
@@ -208,10 +212,9 @@ def main():
     print('Loading model...')
     model = VGGFeatures(layers=style_layers + content_layers).to(device)
 
-    initial_scale = 64
     init_with_content = True
 
-    cw, ch = size_to_fit(content_img.size, initial_scale, scale_up=True)
+    cw, ch = size_to_fit(content_img.size, args.initial_scale, scale_up=True)
     if init_with_content:
         image = TF.to_tensor(content_img.resize((cw, ch), Image.LANCZOS))[None]
     else:
@@ -219,7 +222,7 @@ def main():
     image = image.to(device)
 
     try:
-        for scale in scales(initial_scale, 9):
+        for scale in scales(args.initial_scale, args.scales):
             cw, ch = size_to_fit(content_img.size, scale, scale_up=True)
             sw, sh = size_to_fit(style_img.size, scale)
 
@@ -253,11 +256,11 @@ def main():
 
             opt = optim.Adam([image], lr=5/255)
 
-            # if scale != initial_scale:
+            # if scale != args.initial_scale:
             #     opt_state = scale_adam(opt.state_dict(), (ch, cw))
             #     opt.load_state_dict(opt_state)
 
-            for i in trange(1, 501):
+            for i in trange(1, args.iterations + 1):
                 feats = model(image)
                 feats['input'] = image
                 loss = crit(feats)

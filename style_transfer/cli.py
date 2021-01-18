@@ -28,10 +28,9 @@ def main():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-    defaults = StyleTransfer.stylize.__kwdefaults__
-    default_types = StyleTransfer.stylize.__annotations__
-
     def arg_info(arg):
+        defaults = StyleTransfer.stylize.__kwdefaults__
+        default_types = StyleTransfer.stylize.__annotations__
         return {'default': defaults[arg], 'type': default_types[arg]}
 
     p.add_argument('content', type=str, help='the content image')
@@ -65,6 +64,7 @@ def main():
 
     print('Loading model...')
     st = StyleTransfer(device=device)
+    defaults = StyleTransfer.stylize.__kwdefaults__
     st_kwargs = {k: v for k, v in args.__dict__.items() if k in defaults}
 
     try:

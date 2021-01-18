@@ -16,8 +16,8 @@ def load_image(path):
 
 def setup_exceptions():
     try:
-        from IPython.core.ultratb import AutoFormattedTB
-        sys.excepthook = AutoFormattedTB(mode='Plain', color_scheme='Neutral')
+        from IPython.core.ultratb import FormattedTB
+        sys.excepthook = FormattedTB(mode='Plain', color_scheme='Neutral')
     except ImportError:
         pass
 
@@ -52,8 +52,12 @@ def main():
                    help='the step size (learning rate)')
     args = p.parse_args()
 
-    content_img = load_image(args.content)
-    style_img = load_image(args.style)
+    try:
+        content_img = load_image(args.content)
+        style_img = load_image(args.style)
+    except OSError as err:
+        print('{}: {}'.format(type(err).__name__, err), file=sys.stderr)
+        sys.exit(1)
 
     if args.device is None:
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -75,7 +79,11 @@ def main():
     output_image = st.get_image()
     if output_image is not None:
         print(f'Writing image to {args.output}.')
-        output_image.save(args.output)
+        try:
+            output_image.save(args.output)
+        except (OSError, ValueError) as err:
+            print('{}: {}'.format(type(err).__name__, err), file=sys.stderr)
+            sys.exit(1)
 
 
 if __name__ == '__main__':

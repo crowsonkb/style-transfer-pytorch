@@ -134,9 +134,15 @@ def size_to_fit(size, max_dim, scale_up=False):
     return new_w, new_h
 
 
-def gen_scales(start, n):
-    for i in range(n):
-        yield round(start * pow(2, i/2))
+def gen_scales(start, end):
+    scale = end
+    i = 0
+    scales = []
+    while scale >= start:
+        scales.insert(0, scale)
+        i += 1
+        scale = round(end / pow(2, i/2))
+    return scales
 
 
 def interpolate(*args, **kwargs):
@@ -184,8 +190,8 @@ class StyleTransfer:
     def stylize(self, content_img, style_img, *,
                 content_weight: float = 0.01,
                 tv_weight: float = 2e-7,
-                initial_scale: int = 64,
-                scales: int = 7,
+                min_scale: int = 64,
+                end_scale: int = 512,
                 iterations: int = 500,
                 step_size: float = 0.02,
                 callback=None):
@@ -195,8 +201,9 @@ class StyleTransfer:
         tv_loss = LayerApply(TVLoss(), 'input')
 
         init_with_content = True
+        scales = gen_scales(min_scale, end_scale)
 
-        cw, ch = size_to_fit(content_img.size, initial_scale, scale_up=True)
+        cw, ch = size_to_fit(content_img.size, scales[0], scale_up=True)
         if init_with_content:
             self.image = TF.to_tensor(content_img.resize((cw, ch), Image.LANCZOS))[None]
         else:
@@ -205,7 +212,7 @@ class StyleTransfer:
 
         opt = None
 
-        for scale in gen_scales(initial_scale, scales):
+        for scale in scales:
             cw, ch = size_to_fit(content_img.size, scale, scale_up=True)
             sw, sh = size_to_fit(style_img.size, scale)
 
@@ -238,7 +245,7 @@ class StyleTransfer:
                                 [*content_weights, *self.style_weights, tv_weight])
 
             opt2 = optim.Adam([self.image], lr=step_size)
-            if scale != initial_scale:
+            if scale != scales[0]:
                 opt_state = scale_adam(opt.state_dict(), (ch, cw))
                 opt2.load_state_dict(opt_state)
             opt = opt2

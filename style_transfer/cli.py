@@ -47,10 +47,10 @@ def main():
                    help='the content weight')
     p.add_argument('--tv-weight', '-tw', **arg_info('tv_weight'),
                    help='the smoothing weight')
-    p.add_argument('--initial-scale', '-is', **arg_info('initial_scale'),
-                   help='the initial scale, in pixels')
-    p.add_argument('--scales', '-s', **arg_info('scales'),
-                   help='the number of scales')
+    p.add_argument('--min-scale', '-ms', **arg_info('min_scale'),
+                   help='the minimum scale (max image dim), in pixels')
+    p.add_argument('--end-scale', '-s', **arg_info('end_scale'),
+                   help='the final scale (max image dim), in pixels')
     p.add_argument('--iterations', '-i', **arg_info('iterations'),
                    help='the number of iterations per scale')
     p.add_argument('--step-size', '-ss', **arg_info('step_size'),

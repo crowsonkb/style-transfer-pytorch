@@ -229,7 +229,7 @@ class StyleTransfer:
             for i, layer in enumerate(self.content_layers):
                 weight = content_weights[i]
                 target = content_feats[layer]
-                loss = LayerApply(Normalize(ContentLoss(target), weight), layer)
+                loss = LayerApply(Normalize(ContentLoss(target), abs(weight)), layer)
                 content_losses.append(loss)
 
             print(f'Processing style image ({sw}x{sh})...')
@@ -238,7 +238,7 @@ class StyleTransfer:
             for i, layer in enumerate(self.style_layers):
                 weight = self.style_weights[i]
                 target = StyleLoss.get_target(style_feats[layer])
-                loss = LayerApply(Normalize(StyleLoss(target), weight), layer)
+                loss = LayerApply(Normalize(StyleLoss(target), abs(weight)), layer)
                 style_losses.append(loss)
 
             crit = WeightedLoss([*content_losses, *style_losses, tv_loss],

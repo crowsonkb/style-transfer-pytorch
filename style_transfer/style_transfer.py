@@ -77,7 +77,7 @@ class WeightedLoss(nn.ModuleList):
 
     def _print_losses(self, losses):
         for i, loss in enumerate(losses):
-            print(f'({i}) {self[i]!r}: {loss.item():g}')
+            print(f'{i}: {loss.item():g}')
 
     def forward(self, *args, **kwargs):
         losses = []

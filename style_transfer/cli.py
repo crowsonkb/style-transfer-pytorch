@@ -22,6 +22,10 @@ def setup_exceptions():
         pass
 
 
+def print_error(err):
+    print('\033[31m{}:\033[0m {}'.format(type(err).__name__, err), file=sys.stderr)
+
+
 def main():
     setup_exceptions()
 
@@ -56,7 +60,7 @@ def main():
         content_img = load_image(args.content)
         style_img = load_image(args.style)
     except OSError as err:
-        print('{}: {}'.format(type(err).__name__, err), file=sys.stderr)
+        print_error(err)
         sys.exit(1)
 
     if args.device is None:
@@ -82,7 +86,7 @@ def main():
         try:
             output_image.save(args.output)
         except (OSError, ValueError) as err:
-            print('{}: {}'.format(type(err).__name__, err), file=sys.stderr)
+            print_error(err)
             sys.exit(1)
 
 

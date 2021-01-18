@@ -6,6 +6,7 @@ import sys
 
 from PIL import Image
 import torch
+from tqdm import tqdm
 
 from . import StyleTransfer
 
@@ -75,10 +76,24 @@ def main():
     defaults = StyleTransfer.stylize.__kwdefaults__
     st_kwargs = {k: v for k, v in args.__dict__.items() if k in defaults}
 
+    progress = None
+
+    def callback(iterate):
+        nonlocal progress
+        if not iterate.i:
+            progress = tqdm(total=args.iterations, dynamic_ncols=True)
+        tqdm.write(f'{iterate.scale} {iterate.i + 1} {iterate.loss:g}')
+        progress.update()
+        if iterate.i + 1 == args.iterations:
+            progress.close()
+
     try:
-        st.stylize(content_img, style_img, **st_kwargs)
+        st.stylize(content_img, style_img, **st_kwargs, callback=callback)
     except KeyboardInterrupt:
         pass
+    finally:
+        if progress is not None:
+            progress.close()
 
     output_image = st.get_image()
     if output_image is not None:

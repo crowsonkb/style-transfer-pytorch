@@ -2,6 +2,7 @@
 Style (http://arxiv.org/abs/1508.06576)."""
 
 import copy
+from dataclasses import dataclass
 import warnings
 
 from PIL import Image
@@ -10,7 +11,6 @@ from torch import optim, nn
 from torch.nn import functional as F
 from torchvision import models, transforms
 from torchvision.transforms import functional as TF
-from tqdm import tqdm, trange
 
 
 class VGGFeatures(nn.Module):
@@ -156,6 +156,13 @@ def scale_adam(state, shape):
     return state
 
 
+@dataclass
+class STIterate:
+    scale: int
+    i: int
+    loss: float
+
+
 class StyleTransfer:
     def __init__(self, device='cpu'):
         self.device = torch.device(device)
@@ -174,14 +181,14 @@ class StyleTransfer:
         if self.image is not None:
             return TF.to_pil_image(self.image[0])
 
-    def stylize(self, content_img: Image.Image,
-                style_img: Image.Image, *,
+    def stylize(self, content_img, style_img, *,
                 content_weight: float = 0.01,
                 tv_weight: float = 2e-7,
                 initial_scale: int = 64,
                 scales: int = 7,
                 iterations: int = 500,
-                step_size: float = 0.02):
+                step_size: float = 0.02,
+                callback=None):
 
         content_weights = [content_weight / len(self.content_layers)] * len(self.content_layers)
 
@@ -236,15 +243,16 @@ class StyleTransfer:
                 opt2.load_state_dict(opt_state)
             opt = opt2
 
-            for i in trange(1, iterations + 1):
+            for i in range(iterations):
                 feats = self.model(self.image)
                 feats['input'] = self.image
                 loss = crit(feats)
-                tqdm.write(f'{i} {loss.item() / self.image.numel():g}')
                 opt.zero_grad()
                 loss.backward()
                 opt.step()
                 with torch.no_grad():
                     self.image.clamp_(0, 1)
+                if callback is not None:
+                    callback(STIterate(scale, i, loss.item() / self.image.numel()))
 
         return self.get_image()

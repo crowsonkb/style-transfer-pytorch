@@ -74,58 +74,63 @@ class WeightedLoss(nn.ModuleList):
         super().__init__(losses)
         self.weights = weights
         self.verbose = verbose
-        self.losses = None
 
     def _print_losses(self, losses):
         for i, loss in enumerate(losses):
             print(f'{i}: {loss.item():g}')
 
-    def get_scaled_loss(self):
+    def forward(self, *args, **kwargs):
         losses = []
-        for i, crit in enumerate(self):
-            if hasattr(crit, 'get_scaled_loss'):
-                losses.append(crit.get_scaled_loss() * self.weights[i])
-            else:
-                losses.append(self.losses[i])
+        for loss, weight in zip(self, self.weights):
+            losses.append(loss(*args, **kwargs) * weight)
+        if self.verbose:
+            self._print_losses(losses)
         return sum(losses)
 
-    def forward(self, *args, **kwargs):
-        self.losses = []
-        for loss, weight in zip(self, self.weights):
-            self.losses.append(loss(*args, **kwargs) * weight)
-        if self.verbose:
-            self._print_losses(self.losses)
-        return sum(self.losses)
 
-
-class NormalizeGrad(nn.Module):
-    """Normalizes and optionally scales the enclosed module's gradient."""
-
+class Normalize(nn.Module):
     def __init__(self, module, scale=1, eps=1e-8):
         super().__init__()
         self.module = module
         self.module.register_backward_hook(self._hook)
         self.scale = scale
         self.eps = eps
-        self.fac = None
-        self.loss = None
 
     def _hook(self, module, grad_input, grad_output):
-        grad, *rest = grad_input
-        dims = list(range(1, grad.ndim))
-        norm = abs(grad).sum(dim=dims, keepdims=True)
-        self.fac = self.scale / (norm + self.eps)
-        return grad * self.fac, *rest
-
-    def get_scaled_loss(self):
-        return self.loss * self.fac
+        i, *rest = grad_input
+        dims = list(range(1, i.ndim))
+        norm = abs(i).sum(dim=dims, keepdims=True)
+        return i * self.scale / (norm + self.eps), *rest
 
     def extra_repr(self):
         return f'scale={self.scale!r}'
 
     def forward(self, *args, **kwargs):
-        self.loss = self.module(*args, **kwargs)
-        return self.loss
+        return self.module(*args, **kwargs)
+
+
+class GradientPenalty(nn.Module):
+    def __init__(self, module, norm):
+        super().__init__()
+        self.module = module
+        # self.module.register_backward_hook(self._hook)
+        self.norm = norm
+        # self.saved_grad = None
+
+    def _hook(self, module, grad_input, grad_output):
+        self.saved_grad, *rest = grad_input
+        # self.saved_grad.requires_grad_()
+
+    def forward(self, input):
+        output = self.module(input)
+        grad, = torch.autograd.grad(output, input[self.module.layer], create_graph=True)
+        # print(grad)
+        dims = list(range(1, grad.ndim))
+        norms = abs(grad).sum(dim=dims, keepdims=True)
+        # print(norms)
+        penalty = (norms - self.norm).square().mean()
+        # print(penalty)
+        return penalty
 
 
 class LayerApply(nn.Module):
@@ -204,7 +209,7 @@ class StyleTransfer:
 
     def get_image(self):
         if self.image is not None:
-            return TF.to_pil_image(self.image[0].clamp(0, 1))
+            return TF.to_pil_image(self.image[0])
 
     def stylize(self, content_img, style_img, *,
                 content_weight: float = 0.01,
@@ -215,7 +220,6 @@ class StyleTransfer:
                 step_size: float = 0.02,
                 callback=None):
 
-        min_scale = min(min_scale, end_scale)
         content_weights = [content_weight / len(self.content_layers)] * len(self.content_layers)
 
         tv_loss = LayerApply(TVLoss(), 'input')
@@ -246,23 +250,29 @@ class StyleTransfer:
             print(f'Processing content image ({cw}x{ch})...')
             content_feats = self.model(content, layers=self.content_layers)
             content_losses = []
+            gp_losses = []
             for i, layer in enumerate(self.content_layers):
                 weight = content_weights[i]
                 target = content_feats[layer]
-                loss = NormalizeGrad(LayerApply(ContentLoss(target), layer), abs(weight))
+                loss = LayerApply(ContentLoss(target), layer)
                 content_losses.append(loss)
+                gp_losses.append(GradientPenalty(loss, abs(weight)))
 
             print(f'Processing style image ({sw}x{sh})...')
             style_feats = self.model(style, layers=self.style_layers)
             style_losses = []
+            gp_losses = []
             for i, layer in enumerate(self.style_layers):
                 weight = self.style_weights[i]
                 target = StyleLoss.get_target(style_feats[layer])
-                loss = NormalizeGrad(LayerApply(StyleLoss(target), layer), abs(weight))
+                loss = LayerApply(StyleLoss(target), layer)
                 style_losses.append(loss)
+                gp_losses.append(GradientPenalty(loss, abs(weight)))
 
-            crit = WeightedLoss([*content_losses, *style_losses, tv_loss],
-                                [*content_weights, *self.style_weights, tv_weight])
+            crit = WeightedLoss([*content_losses, *style_losses,
+                                 tv_loss],
+                                [*content_weights, *self.style_weights,
+                                 tv_weight])
 
             opt2 = optim.Adam([self.image], lr=step_size)
             if scale != scales[0]:
@@ -276,11 +286,21 @@ class StyleTransfer:
                 loss = crit(feats)
                 opt.zero_grad()
                 loss.backward()
-                loss2 = crit.get_scaled_loss()
-                opt.step()
+                # print(self.image.grad[0, 0, 0, 0:4])
+                # gp_weights = content_weights + self.style_weights
+                # loss2 = sum(x(feats) * w for x, w in zip(gp_losses, gp_weights))
+                feats = self.model(self.image)
+                loss2 = sum(x(feats) for x in gp_losses)
+                # loss2.backward()
+                # print(loss2.item())
+                loss2.backward()
+                # print(self.image.grad[0, 0, 0, 0:4])
+                # opt.step()
                 with torch.no_grad():
+                    self.image.sub_(self.image.grad * 1e-13)
                     self.image.clamp_(0, 1)
                 if callback is not None:
-                    callback(STIterate(scale, i, loss2.item()))
+                    callback(STIterate(scale, i, loss.item() / self.image.numel()))
+                print(loss2.item())
 
         return self.get_image()

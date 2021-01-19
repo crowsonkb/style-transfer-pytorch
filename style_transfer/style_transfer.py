@@ -87,6 +87,8 @@ class WeightedLoss(nn.ModuleList):
                 losses.append(crit.get_scaled_loss() * self.weights[i])
             else:
                 losses.append(self.losses[i])
+        if self.verbose:
+            self._print_losses(losses)
         return sum(losses)
 
     def forward(self, *args, **kwargs):

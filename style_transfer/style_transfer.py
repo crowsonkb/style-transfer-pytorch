@@ -20,11 +20,22 @@ class VGGFeatures(nn.Module):
         self.normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                               std=[0.229, 0.224, 0.225])
         self.model = models.vgg19(pretrained=True).features[:self.layers[-1] + 1]
+        self.model[0] = self._change_padding_mode(self.model[0], 'replicate')
         for i, layer in enumerate(self.model):
             if isinstance(layer, nn.MaxPool2d):
                 self.model[i] = nn.MaxPool2d(2, ceil_mode=True)
         self.model.eval()
         self.model.requires_grad_(False)
+
+    @staticmethod
+    def _change_padding_mode(conv, padding_mode):
+        new_conv = nn.Conv2d(conv.in_channels, conv.out_channels, conv.kernel_size,
+                             stride=conv.stride, padding=conv.padding,
+                             padding_mode=padding_mode)
+        with torch.no_grad():
+            new_conv.weight.copy_(conv.weight)
+            new_conv.bias.copy_(conv.bias)
+        return new_conv
 
     def forward(self, input, layers=None):
         layers = self.layers if layers is None else sorted(set(layers))

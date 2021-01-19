@@ -216,6 +216,8 @@ class StyleTransfer:
                 iterations: int = 500,
                 step_size: float = 0.02,
                 init: str = 'content',
+                style_scale_fac: float = 1.,
+                style_size: int = None,
                 callback=None):
 
         min_scale = min(min_scale, end_scale)
@@ -240,7 +242,10 @@ class StyleTransfer:
 
         for scale in scales:
             cw, ch = size_to_fit(content_img.size, scale, scale_up=True)
-            sw, sh = size_to_fit(style_img.size, scale)
+            if style_size is None:
+                sw, sh = size_to_fit(style_img.size, round(scale * style_scale_fac))
+            else:
+                sw, sh = size_to_fit(style_img.size, style_size)
 
             content = TF.to_tensor(content_img.resize((cw, ch), Image.LANCZOS))[None]
             style = TF.to_tensor(style_img.resize((sw, sh), Image.LANCZOS))[None]

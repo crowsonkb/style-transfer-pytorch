@@ -57,6 +57,11 @@ def main():
                    help='the step size (learning rate)')
     p.add_argument('--init', **arg_info('init'), choices=['content', 'gray', 'random'],
                    help='the initial image')
+    p.add_argument('--style-scale-fac', **arg_info('style_scale_fac'),
+                   help='the relative scale of the style to the content')
+    p.add_argument('--style-size', **arg_info('style_size'),
+                   help='the fixed scale of the style at different content scales')
+
     args = p.parse_args()
 
     try:

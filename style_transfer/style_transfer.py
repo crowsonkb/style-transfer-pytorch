@@ -66,7 +66,7 @@ class TVLoss(nn.Module):
         x_diff = input[..., :-1, :-1] - input[..., :-1, 1:]
         y_diff = input[..., :-1, :-1] - input[..., 1:, :-1]
         diff = x_diff**2 + y_diff**2
-        return torch.sum(diff)
+        return torch.mean(diff)
 
 
 class WeightedLoss(nn.ModuleList):
@@ -210,7 +210,7 @@ class StyleTransfer:
 
     def stylize(self, content_img, style_img, *,
                 content_weight: float = 0.01,
-                tv_weight: float = 2e-7,
+                tv_weight: float = 0.15,
                 min_scale: int = 64,
                 end_scale: int = 512,
                 iterations: int = 500,

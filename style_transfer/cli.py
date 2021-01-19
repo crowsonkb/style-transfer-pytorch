@@ -77,6 +77,7 @@ def main():
         device = torch.device(args.device)
     print('Using device:', device)
     torch.tensor(0).to(device)
+    torch.manual_seed(0)
 
     print('Loading model...')
     st = StyleTransfer(device=device)

@@ -61,8 +61,6 @@ def main():
                    help='the relative scale of the style to the content')
     p.add_argument('--style-size', **arg_info('style_size'),
                    help='the fixed scale of the style at different content scales')
-    p.add_argument('--pooling', type=str, default='max', choices=['max', 'average', 'l2'],
-                   help='the model\'s pooling mode')
 
     args = p.parse_args()
 
@@ -82,7 +80,7 @@ def main():
     torch.manual_seed(0)
 
     print('Loading model...')
-    st = StyleTransfer(device=device, pooling=args.pooling)
+    st = StyleTransfer(device=device)
     defaults = StyleTransfer.stylize.__kwdefaults__
     st_kwargs = {k: v for k, v in args.__dict__.items() if k in defaults}
 

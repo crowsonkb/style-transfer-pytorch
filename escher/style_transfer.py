@@ -14,7 +14,7 @@ from torchvision.transforms import functional as TF
 
 
 class VGGFeatures(nn.Module):
-    def __init__(self, layers, pooling='max'):
+    def __init__(self, layers):
         super().__init__()
         self.layers = sorted(set(layers))
         self.normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
@@ -23,14 +23,7 @@ class VGGFeatures(nn.Module):
         self.model[0] = self._change_padding_mode(self.model[0], 'replicate')
         for i, layer in enumerate(self.model):
             if isinstance(layer, nn.MaxPool2d):
-                if pooling == 'max':
-                    self.model[i] = nn.MaxPool2d(2, ceil_mode=True)
-                elif pooling == 'average':
-                    self.model[i] = nn.AvgPool2d(2, ceil_mode=True)
-                elif pooling == 'l2':
-                    self.model[i] = nn.LPPool2d(2, 2, ceil_mode=True)
-                else:
-                    raise ValueError("Pooling must be 'max', 'average', or 'l2'")
+                self.model[i] = nn.AvgPool2d(2, ceil_mode=True)
         self.model.eval()
         self.model.requires_grad_(False)
 
@@ -190,6 +183,10 @@ def interpolate(*args, **kwargs):
         return F.interpolate(*args, **kwargs)
 
 
+def dropout_mask(size, fac, **kwargs):
+    return (torch.rand(size, **kwargs) < fac) / fac
+
+
 def scale_adam(state, shape):
     state = copy.deepcopy(state)
     for group in state['state'].values():
@@ -209,7 +206,7 @@ class STIterate:
 
 
 class StyleTransfer:
-    def __init__(self, device='cpu', pooling='max'):
+    def __init__(self, device='cpu'):
         self.device = torch.device(device)
         self.image = None
 
@@ -220,8 +217,7 @@ class StyleTransfer:
         weight_sum = sum(abs(w) for w in style_weights)
         self.style_weights = [w / weight_sum for w in style_weights]
 
-        model = VGGFeatures(self.style_layers + self.content_layers, pooling=pooling)
-        self.model = model.to(self.device)
+        self.model = VGGFeatures(self.style_layers + self.content_layers).to(self.device)
 
     def get_image(self):
         if self.image is not None:
@@ -257,6 +253,9 @@ class StyleTransfer:
             raise ValueError("init must be one of 'content', 'gray', 'random'")
         self.image = self.image.to(self.device)
 
+        torch.manual_seed(2)
+        mask = dropout_mask([1, 512, 1, 1], 0.5, device=self.device)
+
         opt = None
 
         for scale in scales:
@@ -271,6 +270,8 @@ class StyleTransfer:
             content, style = content.to(self.device), style.to(self.device)
 
             self.image = interpolate(self.image.detach(), (ch, cw), mode='bicubic').clamp(0, 1)
+            bw = self.image.mean(dim=1, keepdims=True)
+            self.image.copy_(torch.cat([bw, bw, bw], dim=1))
             self.image.requires_grad_()
 
             print(f'Processing content image ({cw}x{ch})...')
@@ -279,6 +280,7 @@ class StyleTransfer:
             for i, layer in enumerate(self.content_layers):
                 weight = content_weights[i]
                 target = content_feats[layer]
+                target *= mask
                 loss = NormalizeGrad(LayerApply(ContentLoss(target), layer), abs(weight))
                 content_losses.append(loss)
 
@@ -294,7 +296,7 @@ class StyleTransfer:
             crit = WeightedLoss([*content_losses, *style_losses, tv_loss],
                                 [*content_weights, *self.style_weights, tv_weight])
 
-            opt2 = optim.Adam([self.image], lr=step_size)
+            opt2 = optim.Adam([self.image], lr=step_size, betas=(0.99, 0.999))
             if scale != scales[0]:
                 opt_state = scale_adam(opt.state_dict(), (ch, cw))
                 opt2.load_state_dict(opt_state)
@@ -304,12 +306,19 @@ class StyleTransfer:
                 feats = self.model(self.image)
                 feats['input'] = self.image
                 loss = crit(feats)
+                # loss += feats[22].square().sum().sqrt() * 0.000001
+                # loss_c = feats[22].max() / 10000
+                # loss_c = abs(feats[22]).pow(6).mean().pow(1/6) / 500
+                # print(loss_c.item())
+                # loss += loss_c
                 opt.zero_grad()
                 loss.backward()
-                loss2 = crit.get_scaled_loss()
+                loss2 = crit.get_scaled_loss()  # + loss_c
                 opt.step()
                 with torch.no_grad():
                     self.image.clamp_(0, 1)
+                    bw = self.image.mean(dim=1, keepdims=True)
+                    self.image.copy_(torch.cat([bw, bw, bw], dim=1))
                 if callback is not None:
                     callback(STIterate(scale, i, loss2.item()))
 

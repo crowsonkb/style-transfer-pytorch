@@ -213,6 +213,7 @@ class StyleTransfer:
                 end_scale: int = 512,
                 iterations: int = 500,
                 step_size: float = 0.02,
+                init: str = 'content',
                 callback=None):
 
         min_scale = min(min_scale, end_scale)
@@ -220,14 +221,17 @@ class StyleTransfer:
 
         tv_loss = LayerApply(TVLoss(), 'input')
 
-        init_with_content = True
         scales = gen_scales(min_scale, end_scale)
 
         cw, ch = size_to_fit(content_img.size, scales[0], scale_up=True)
-        if init_with_content:
+        if init == 'content':
             self.image = TF.to_tensor(content_img.resize((cw, ch), Image.LANCZOS))[None]
-        else:
+        elif init == 'gray':
             self.image = torch.rand([1, 3, ch, cw]) / 255 + 0.5
+        elif init == 'random':
+            self.image = torch.rand([1, 3, ch, cw])
+        else:
+            raise ValueError("init must be one of 'content', 'gray', 'random'")
         self.image = self.image.to(self.device)
 
         opt = None

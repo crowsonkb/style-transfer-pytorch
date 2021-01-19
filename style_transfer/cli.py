@@ -55,6 +55,8 @@ def main():
                    help='the number of iterations per scale')
     p.add_argument('--step-size', '-ss', **arg_info('step_size'),
                    help='the step size (learning rate)')
+    p.add_argument('--init', **arg_info('init'), choices=['content', 'gray', 'random'],
+                   help='the initial image')
     args = p.parse_args()
 
     try:

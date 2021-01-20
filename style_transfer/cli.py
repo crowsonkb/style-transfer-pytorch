@@ -43,6 +43,8 @@ def main():
     p.add_argument('output', type=str, nargs='?', default='out.png',
                    help='the output image')
     p.add_argument('--device', type=str, help='the device name to use (omit for auto)')
+    p.add_argument('--random-seed', '-r', type=int, default=0,
+                   help='the random seed')
     p.add_argument('--content-weight', '-cw', **arg_info('content_weight'),
                    help='the content weight')
     p.add_argument('--tv-weight-1', '-tw1', **arg_info('tv_weight_1'),
@@ -81,7 +83,7 @@ def main():
         device = torch.device(args.device)
     print('Using device:', device)
     torch.tensor(0).to(device)
-    torch.manual_seed(0)
+    torch.manual_seed(args.random_seed)
 
     print('Loading model...')
     st = StyleTransfer(device=device, pooling=args.pooling)

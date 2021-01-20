@@ -105,7 +105,7 @@ class WeightedLoss(nn.ModuleList):
     def get_scaled_loss(self):
         losses = []
         for i, crit in enumerate(self):
-            if hasattr(crit, 'get_scaled_loss'):
+            if self.weights[i] and hasattr(crit, 'get_scaled_loss'):
                 losses.append(crit.get_scaled_loss() * self.weights[i])
             else:
                 losses.append(self.losses[i])
@@ -116,7 +116,8 @@ class WeightedLoss(nn.ModuleList):
     def forward(self, *args, **kwargs):
         self.losses = []
         for loss, weight in zip(self, self.weights):
-            self.losses.append(loss(*args, **kwargs) * weight)
+            loss_value = loss(*args, **kwargs) * weight if weight else torch.tensor(0)
+            self.losses.append(loss_value)
         if self.verbose:
             self._print_losses(self.losses)
         return sum(self.losses)

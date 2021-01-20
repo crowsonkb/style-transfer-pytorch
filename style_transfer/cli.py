@@ -103,12 +103,16 @@ def main():
 
     def callback(iterate):
         nonlocal progress
-        if not iterate.i:
+        if iterate.i == 1:
             progress = tqdm(total=args.iterations, dynamic_ncols=True)
-        tqdm.write(f'{iterate.scale} {iterate.i + 1} {iterate.loss:g}')
+        tqdm.write(f'{iterate.scale} {iterate.i} {iterate.loss:g}')
         progress.update()
-        if iterate.i + 1 == args.iterations:
+        if iterate.i == args.iterations:
             progress.close()
+            if iterate.scale != args.end_scale:
+                save_image(st.get_image(), args.output)
+        elif iterate.i % 20 == 0:
+            save_image(st.get_image(), args.output)
 
     try:
         st.stylize(content_img, style_img, **st_kwargs, callback=callback)

@@ -45,10 +45,8 @@ def main():
     p.add_argument('--device', type=str, help='the device name to use (omit for auto)')
     p.add_argument('--content-weight', '-cw', **arg_info('content_weight'),
                    help='the content weight')
-    p.add_argument('--tv-weight-1', '-tw1', **arg_info('tv_weight_1'),
-                   help='the L1 smoothing weight')
-    p.add_argument('--tv-weight-2', '-tw', '-tw2', **arg_info('tv_weight_2'),
-                   help='the L2 smoothing weight')
+    p.add_argument('--tv-weight', '-tw', **arg_info('tv_weight'),
+                   help='the smoothing weight')
     p.add_argument('--min-scale', '-ms', **arg_info('min_scale'),
                    help='the minimum scale (max image dim), in pixels')
     p.add_argument('--end-scale', '-s', **arg_info('end_scale'),
@@ -65,6 +63,8 @@ def main():
                    help='the fixed scale of the style at different content scales')
     p.add_argument('--pooling', type=str, default='max', choices=['max', 'average', 'l2'],
                    help='the model\'s pooling mode')
+    p.add_argument('--bw', action='store_true',
+                   help='black and white mode')
 
     args = p.parse_args()
 

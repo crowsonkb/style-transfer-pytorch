@@ -79,19 +79,11 @@ class StyleLoss(nn.Module):
 
 
 class TVLoss(nn.Module):
-    def __init__(self, p, eps=1e-8):
-        super().__init__()
-        assert p in {1, 2}
-        self.p = p
-        self.eps = eps
-
     def forward(self, input):
         input = F.pad(input, (0, 1, 0, 1), 'replicate')
         x_diff = input[..., :-1, :-1] - input[..., :-1, 1:]
         y_diff = input[..., :-1, :-1] - input[..., 1:, :-1]
         diff = x_diff**2 + y_diff**2
-        if self.p == 1:
-            diff = (diff + self.eps).mean(dim=1).sqrt()
         return torch.mean(diff)
 
 
@@ -198,6 +190,11 @@ def interpolate(*args, **kwargs):
         return F.interpolate(*args, **kwargs)
 
 
+def to_bw(input):
+    bw = input.mean(dim=1, keepdims=True)
+    return torch.cat([bw] * input.shape[1], dim=1)
+
+
 def scale_adam(state, shape):
     state = copy.deepcopy(state)
     for group in state['state'].values():
@@ -237,8 +234,7 @@ class StyleTransfer:
 
     def stylize(self, content_img, style_img, *,
                 content_weight: float = 0.01,
-                tv_weight_1: float = 0.,
-                tv_weight_2: float = 0.15,
+                tv_weight: float = 0.15,
                 min_scale: int = 64,
                 end_scale: int = 512,
                 iterations: int = 500,
@@ -246,14 +242,13 @@ class StyleTransfer:
                 init: str = 'content',
                 style_scale_fac: float = 1.,
                 style_size: int = None,
+                bw: bool = False,
                 callback=None):
 
         min_scale = min(min_scale, end_scale)
         content_weights = [content_weight / len(self.content_layers)] * len(self.content_layers)
 
-        tv_losses = [LayerApply(TVLoss(p=1), 'input'),
-                     LayerApply(TVLoss(p=2), 'input')]
-        tv_weights = [tv_weight_1, tv_weight_2]
+        tv_loss = LayerApply(TVLoss(), 'input')
 
         scales = gen_scales(min_scale, end_scale)
 
@@ -282,6 +277,11 @@ class StyleTransfer:
             content, style = content.to(self.device), style.to(self.device)
 
             self.image = interpolate(self.image.detach(), (ch, cw), mode='bicubic').clamp(0, 1)
+
+            if bw:
+                self.image.copy_(to_bw(self.image))
+                content.copy_(to_bw(content))
+                style.copy_(to_bw(style))
             self.image.requires_grad_()
 
             print(f'Processing content image ({cw}x{ch})...')
@@ -302,8 +302,8 @@ class StyleTransfer:
                 loss = NormalizeGrad(LayerApply(StyleLoss(target), layer), abs(weight))
                 style_losses.append(loss)
 
-            crit = WeightedLoss([*content_losses, *style_losses, *tv_losses],
-                                [*content_weights, *self.style_weights, *tv_weights])
+            crit = WeightedLoss([*content_losses, *style_losses, tv_loss],
+                                [*content_weights, *self.style_weights, tv_weight])
 
             opt2 = optim.Adam([self.image], lr=step_size)
             if scale != scales[0]:
@@ -321,6 +321,8 @@ class StyleTransfer:
                 opt.step()
                 with torch.no_grad():
                     self.image.clamp_(0, 1)
+                    if bw:
+                        self.image.copy_(to_bw(self.image))
                 if callback is not None:
                     callback(STIterate(scale, i, loss2.item()))
 

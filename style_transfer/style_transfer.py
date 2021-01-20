@@ -14,8 +14,22 @@ from torchvision import models, transforms
 from torchvision.transforms import functional as TF
 
 
+class Scale(nn.Module):
+    def __init__(self, module, scale):
+        super().__init__()
+        self.module = module
+        self.scale = scale
+
+    def extra_repr(self):
+        return f'scale={self.scale!r}'
+
+    def forward(self, *args, **kwargs):
+        return self.module(*args, **kwargs) * self.scale
+
+
 class VGGFeatures(nn.Module):
     poolings = {'max': nn.MaxPool2d, 'average': nn.AvgPool2d, 'l2': partial(nn.LPPool2d, 2)}
+    pooling_scales = {'max': 1., 'average': 2., 'l2': 0.78}
 
     def __init__(self, layers, pooling='max'):
         super().__init__()
@@ -24,9 +38,10 @@ class VGGFeatures(nn.Module):
                                               std=[0.229, 0.224, 0.225])
         self.model = models.vgg19(pretrained=True).features[:self.layers[-1] + 1]
         self.model[0] = self._change_padding_mode(self.model[0], 'replicate')
+        pool_scale = self.pooling_scales[pooling]
         for i, layer in enumerate(self.model):
             if isinstance(layer, nn.MaxPool2d):
-                self.model[i] = self.poolings[pooling](2, ceil_mode=True)
+                self.model[i] = Scale(self.poolings[pooling](2, ceil_mode=True), pool_scale)
         self.model.eval()
         self.model.requires_grad_(False)
 

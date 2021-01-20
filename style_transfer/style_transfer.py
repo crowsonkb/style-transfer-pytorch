@@ -3,6 +3,7 @@ Style (http://arxiv.org/abs/1508.06576)."""
 
 import copy
 from dataclasses import dataclass
+from functools import partial
 import warnings
 
 from PIL import Image
@@ -14,6 +15,8 @@ from torchvision.transforms import functional as TF
 
 
 class VGGFeatures(nn.Module):
+    poolings = {'max': nn.MaxPool2d, 'average': nn.AvgPool2d, 'l2': partial(nn.LPPool2d, 2)}
+
     def __init__(self, layers, pooling='max'):
         super().__init__()
         self.layers = sorted(set(layers))
@@ -23,14 +26,7 @@ class VGGFeatures(nn.Module):
         self.model[0] = self._change_padding_mode(self.model[0], 'replicate')
         for i, layer in enumerate(self.model):
             if isinstance(layer, nn.MaxPool2d):
-                if pooling == 'max':
-                    self.model[i] = nn.MaxPool2d(2, ceil_mode=True)
-                elif pooling == 'average':
-                    self.model[i] = nn.AvgPool2d(2, ceil_mode=True)
-                elif pooling == 'l2':
-                    self.model[i] = nn.LPPool2d(2, 2, ceil_mode=True)
-                else:
-                    raise ValueError("Pooling must be 'max', 'average', or 'l2'")
+                self.model[i] = self.poolings[pooling](2, ceil_mode=True)
         self.model.eval()
         self.model.requires_grad_(False)
 

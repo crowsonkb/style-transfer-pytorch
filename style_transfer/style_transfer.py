@@ -137,13 +137,18 @@ class NormalizeGrad(nn.Module):
 
     def _hook(self, module, grad_input, grad_output):
         grad, *rest = grad_input
+        if grad is None:
+            return
         dims = list(range(1, grad.ndim))
         norm = abs(grad).sum(dim=dims, keepdims=True)
         self.fac = self.scale / (norm + self.eps)
         return grad * self.fac, *rest
 
     def get_scaled_loss(self):
-        return self.loss * self.fac
+        loss = self.loss.clone()
+        with torch.no_grad():
+            loss *= self.fac.mean()
+            return loss
 
     def extra_repr(self):
         return f'scale={self.scale!r}'
@@ -166,6 +171,7 @@ class LayerApply(nn.Module):
         return self.module(input[self.layer])
 
 
+class EMA:
 def size_to_fit(size, max_dim, scale_up=False):
     w, h = size
     if not scale_up and max(h, w) <= max_dim:

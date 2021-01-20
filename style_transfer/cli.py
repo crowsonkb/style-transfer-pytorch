@@ -12,7 +12,20 @@ from . import StyleTransfer
 
 
 def load_image(path):
-    return Image.open(path).convert('RGB')
+    try:
+        return Image.open(path).convert('RGB')
+    except OSError as err:
+        print_error(err)
+        sys.exit(1)
+
+
+def save_image(image, path):
+    # print(f'Writing image to {path}.')
+    try:
+        image.save(path)
+    except (OSError, ValueError) as err:
+        print_error(err)
+        sys.exit(1)
 
 
 def setup_exceptions():
@@ -70,12 +83,8 @@ def main():
 
     args = p.parse_args()
 
-    try:
-        content_img = load_image(args.content)
-        style_img = load_image(args.style)
-    except OSError as err:
-        print_error(err)
-        sys.exit(1)
+    content_img = load_image(args.content)
+    style_imgs = [load_image(img) for img in args.styles]
 
     if args.device is None:
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -111,12 +120,7 @@ def main():
 
     output_image = st.get_image()
     if output_image is not None:
-        print(f'Writing image to {args.output}.')
-        try:
-            output_image.save(args.output)
-        except (OSError, ValueError) as err:
-            print_error(err)
-            sys.exit(1)
+        save_image(output_image, args.output)
 
 
 if __name__ == '__main__':

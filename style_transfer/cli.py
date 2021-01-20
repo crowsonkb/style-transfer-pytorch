@@ -20,7 +20,7 @@ def load_image(path):
 
 
 def save_image(image, path):
-    # print(f'Writing image to {path}.')
+    tqdm.write(f'Writing image to {path}.')
     try:
         image.save(path)
     except (OSError, ValueError) as err:
@@ -72,6 +72,8 @@ def main():
                    help='the final scale (max image dim), in pixels')
     p.add_argument('--iterations', '-i', **arg_info('iterations'),
                    help='the number of iterations per scale')
+    p.add_argument('--initial-iterations', '-ii', **arg_info('initial_iterations'),
+                   help='the number of iterations on the first scale')
     p.add_argument('--step-size', '-ss', **arg_info('step_size'),
                    help='the step size (learning rate)')
     p.add_argument('--init', **arg_info('init'), choices=['content', 'gray', 'random'],
@@ -106,14 +108,14 @@ def main():
     def callback(iterate):
         nonlocal progress
         if iterate.i == 1:
-            progress = tqdm(total=args.iterations, dynamic_ncols=True)
+            progress = tqdm(total=iterate.i_max, dynamic_ncols=True)
         tqdm.write(f'{iterate.scale} {iterate.i} {iterate.loss:g}')
         progress.update()
-        if iterate.i == args.iterations:
+        if iterate.i == iterate.i_max:
             progress.close()
             if iterate.scale != args.end_scale:
                 save_image(st.get_image(), args.output)
-        elif iterate.i % 20 == 0:
+        elif iterate.i % 50 == 0:
             save_image(st.get_image(), args.output)
 
     try:

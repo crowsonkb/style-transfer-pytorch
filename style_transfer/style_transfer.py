@@ -216,6 +216,7 @@ def scale_adam(state, shape):
 class STIterate:
     scale: int
     i: int
+    i_max: int
     loss: float
 
 
@@ -246,6 +247,7 @@ class StyleTransfer:
                 min_scale: int = 64,
                 end_scale: int = 512,
                 iterations: int = 500,
+                initial_iterations: int = 1000,
                 step_size: float = 0.02,
                 init: str = 'content',
                 style_scale_fac: float = 1.,
@@ -331,7 +333,8 @@ class StyleTransfer:
                 opt2.load_state_dict(opt_state)
             opt = opt2
 
-            for i in range(1, iterations + 1):
+            actual_its = initial_iterations if scale == scales[0] else iterations
+            for i in range(1, actual_its + 1):
                 feats = self.model(self.image)
                 feats['input'] = self.image
                 loss = crit(feats)
@@ -342,6 +345,6 @@ class StyleTransfer:
                 with torch.no_grad():
                     self.image.clamp_(0, 1)
                 if callback is not None:
-                    callback(STIterate(scale, i, loss2.item()))
+                    callback(STIterate(scale, i, actual_its, loss2.item()))
 
         return self.get_image()

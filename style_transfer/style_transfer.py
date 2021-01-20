@@ -235,7 +235,8 @@ class StyleTransfer:
         if self.image is not None:
             return TF.to_pil_image(self.image[0].clamp(0, 1))
 
-    def stylize(self, content_img, style_img, *,
+    def stylize(self, content_img, style_imgs, *,
+                style_img_weights=None,
                 content_weight: float = 0.01,
                 tv_weight_1: float = 0.,
                 tv_weight_2: float = 0.15,
@@ -250,6 +251,14 @@ class StyleTransfer:
 
         min_scale = min(min_scale, end_scale)
         content_weights = [content_weight / len(self.content_layers)] * len(self.content_layers)
+
+        if style_img_weights is None:
+            style_img_weights = [1 / len(style_imgs)] * len(style_imgs)
+        else:
+            weight_sum = sum(style_img_weights)
+            style_img_weights = [weight / weight_sum for weight in style_img_weights]
+        if len(style_imgs) != len(style_img_weights):
+            raise ValueError('style_imgs and style_img_weights must have the same length')
 
         tv_losses = [LayerApply(TVLoss(p=1), 'input'),
                      LayerApply(TVLoss(p=2), 'input')]
@@ -272,14 +281,8 @@ class StyleTransfer:
 
         for scale in scales:
             cw, ch = size_to_fit(content_img.size, scale, scale_up=True)
-            if style_size is None:
-                sw, sh = size_to_fit(style_img.size, round(scale * style_scale_fac))
-            else:
-                sw, sh = size_to_fit(style_img.size, style_size)
-
             content = TF.to_tensor(content_img.resize((cw, ch), Image.LANCZOS))[None]
-            style = TF.to_tensor(style_img.resize((sw, sh), Image.LANCZOS))[None]
-            content, style = content.to(self.device), style.to(self.device)
+            content = content.to(self.device)
 
             self.image = interpolate(self.image.detach(), (ch, cw), mode='bicubic').clamp(0, 1)
             self.image.requires_grad_()
@@ -293,12 +296,26 @@ class StyleTransfer:
                 loss = NormalizeGrad(LayerApply(ContentLoss(target), layer), abs(weight))
                 content_losses.append(loss)
 
-            print(f'Processing style image ({sw}x{sh})...')
-            style_feats = self.model(style, layers=self.style_layers)
+            style_targets = {}
             style_losses = []
+            for i, style_img in enumerate(style_imgs):
+                if style_size is None:
+                    sw, sh = size_to_fit(style_img.size, round(scale * style_scale_fac))
+                else:
+                    sw, sh = size_to_fit(style_img.size, style_size)
+                style = TF.to_tensor(style_img.resize((sw, sh), Image.LANCZOS))[None]
+                style = style.to(self.device)
+                print(f'Processing style image ({sw}x{sh})...')
+                style_feats = self.model(style, layers=self.style_layers)
+                for layer in self.style_layers:
+                    target = StyleLoss.get_target(style_feats[layer]) * style_img_weights[i]
+                    if layer not in style_targets:
+                        style_targets[layer] = target
+                    else:
+                        style_targets[layer] += target
             for i, layer in enumerate(self.style_layers):
                 weight = self.style_weights[i]
-                target = StyleLoss.get_target(style_feats[layer])
+                target = style_targets[layer]
                 loss = NormalizeGrad(LayerApply(StyleLoss(target), layer), abs(weight))
                 style_losses.append(loss)
 
@@ -311,7 +328,7 @@ class StyleTransfer:
                 opt2.load_state_dict(opt_state)
             opt = opt2
 
-            for i in range(iterations):
+            for i in range(1, iterations + 1):
                 feats = self.model(self.image)
                 feats['input'] = self.image
                 loss = crit(feats)

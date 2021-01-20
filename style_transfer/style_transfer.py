@@ -251,7 +251,7 @@ class StyleTransfer:
         if style_img_weights is None:
             style_img_weights = [1 / len(style_imgs)] * len(style_imgs)
         else:
-            weight_sum = sum(style_img_weights)
+            weight_sum = sum(abs(w) for w in style_img_weights)
             style_img_weights = [weight / weight_sum for weight in style_img_weights]
         if len(style_imgs) != len(style_img_weights):
             raise ValueError('style_imgs and style_img_weights must have the same length')

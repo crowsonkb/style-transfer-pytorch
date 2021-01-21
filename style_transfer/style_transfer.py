@@ -44,7 +44,7 @@ class VGGFeatures(nn.Module):
 
     def forward(self, input, layers=None):
         layers = self.layers if layers is None else sorted(set(layers))
-        feats = {}
+        feats = {'input': input}
         cur = 0
         for layer in layers:
             input = self.model[cur:layer+1](input)
@@ -376,7 +376,6 @@ class StyleTransfer:
             actual_its = initial_iterations if scale == scales[0] else iterations
             for i in range(1, actual_its + 1):
                 feats = self.model(self.image)
-                feats['input'] = self.image
                 loss = crit(feats)
                 opt.zero_grad()
                 loss.backward()

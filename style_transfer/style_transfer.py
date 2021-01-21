@@ -202,6 +202,9 @@ class EMA(nn.Module):
         self.value *= self.decay
         self.value += (1 - self.decay) * input
 
+    def mutate(self, new_value):
+        self.value = new_value * (1 - self.accum)
+
 
 def size_to_fit(size, max_dim, scale_up=False):
     w, h = size
@@ -336,8 +339,8 @@ class StyleTransfer:
             content = content.to(self.device)
 
             self.image = interpolate(self.image.detach(), (ch, cw), mode='bicubic').clamp(0, 1)
-            self.average.value = interpolate(self.average.value, (ch, cw), mode='bicubic')
-            self.average.value.clamp_(0, 1 - self.average.accum)
+            new_avg = interpolate(self.average.get(), (ch, cw), mode='bicubic').clamp(0, 1)
+            self.average.mutate(new_avg)
             self.image.requires_grad_()
 
             print(f'Processing content image ({cw}x{ch})...')

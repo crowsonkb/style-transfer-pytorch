@@ -289,7 +289,7 @@ class StyleTransfer:
                 content_weight: float = 0.01,
                 tv_weight_1: float = 0.,
                 tv_weight_2: float = 0.15,
-                min_scale: int = 64,
+                min_scale: int = 128,
                 end_scale: int = 512,
                 iterations: int = 500,
                 initial_iterations: int = 1000,

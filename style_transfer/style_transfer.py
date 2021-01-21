@@ -14,19 +14,6 @@ from torchvision import models, transforms
 from torchvision.transforms import functional as TF
 
 
-class Scale(nn.Module):
-    def __init__(self, module, scale):
-        super().__init__()
-        self.module = module
-        self.scale = scale
-
-    def extra_repr(self):
-        return f'scale={self.scale!r}'
-
-    def forward(self, *args, **kwargs):
-        return self.module(*args, **kwargs) * self.scale
-
-
 class VGGFeatures(nn.Module):
     poolings = {'max': nn.MaxPool2d, 'average': nn.AvgPool2d, 'l2': partial(nn.LPPool2d, 2)}
     pooling_scales = {'max': 1., 'average': 2., 'l2': 0.78}
@@ -136,6 +123,19 @@ class WeightedLoss(nn.ModuleList):
         if self.verbose:
             self._print_losses(self.losses)
         return sum(self.losses)
+
+
+class Scale(nn.Module):
+    def __init__(self, module, scale):
+        super().__init__()
+        self.module = module
+        self.scale = scale
+
+    def extra_repr(self):
+        return f'scale={self.scale!r}'
+
+    def forward(self, *args, **kwargs):
+        return self.module(*args, **kwargs) * self.scale
 
 
 class NormalizeGrad(nn.Module):

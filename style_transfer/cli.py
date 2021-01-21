@@ -76,6 +76,8 @@ def main():
                    help='the number of iterations on the first scale')
     p.add_argument('--step-size', '-ss', **arg_info('step_size'),
                    help='the step size (learning rate)')
+    p.add_argument('--avg-decay', '-ad', **arg_info('avg_decay'),
+                   help='the EMA decay rate for iterate averaging')
     p.add_argument('--init', **arg_info('init'), choices=['content', 'gray', 'random'],
                    help='the initial image')
     p.add_argument('--style-scale-fac', **arg_info('style_scale_fac'),

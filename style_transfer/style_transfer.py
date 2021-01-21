@@ -187,6 +187,21 @@ class LayerApply(nn.Module):
 
 
 class EMA:
+    def __init__(self, input, decay):
+        self.decay = decay
+        self.value = torch.zeros_like(input)
+        self.accum = 1
+        self.update(input)
+
+    def get(self):
+        return self.value / (1 - self.accum)
+
+    def update(self, input):
+        self.accum *= self.decay
+        self.value *= self.decay
+        self.value += (1 - self.decay) * input
+
+
 def size_to_fit(size, max_dim, scale_up=False):
     w, h = size
     if not scale_up and max(h, w) <= max_dim:
@@ -239,6 +254,7 @@ class StyleTransfer:
     def __init__(self, device='cpu', pooling='max'):
         self.device = torch.device(device)
         self.image = None
+        self.average = None
 
         self.content_layers = [22]
 
@@ -251,8 +267,8 @@ class StyleTransfer:
         self.model = model.to(self.device)
 
     def get_image(self):
-        if self.image is not None:
-            return TF.to_pil_image(self.image[0].clamp(0, 1))
+        if self.average is not None:
+            return TF.to_pil_image(self.average.get()[0].clamp(0, 1))
 
     def stylize(self, content_img, style_imgs, *,
                 style_img_weights=None,
@@ -264,6 +280,7 @@ class StyleTransfer:
                 iterations: int = 500,
                 initial_iterations: int = 1000,
                 step_size: float = 0.02,
+                avg_decay: float = 0.99,
                 init: str = 'content',
                 style_scale_fac: float = 1.,
                 style_size: int = None,
@@ -296,6 +313,7 @@ class StyleTransfer:
         else:
             raise ValueError("init must be one of 'content', 'gray', 'random'")
         self.image = self.image.to(self.device)
+        self.average = EMA(self.image, avg_decay)
 
         opt = None
 
@@ -305,6 +323,8 @@ class StyleTransfer:
             content = content.to(self.device)
 
             self.image = interpolate(self.image.detach(), (ch, cw), mode='bicubic').clamp(0, 1)
+            self.average.value = interpolate(self.average.value, (ch, cw), mode='bicubic')
+            self.average.value.clamp_(0, 1 - self.average.accum)
             self.image.requires_grad_()
 
             print(f'Processing content image ({cw}x{ch})...')
@@ -359,7 +379,11 @@ class StyleTransfer:
                 opt.step()
                 with torch.no_grad():
                     self.image.clamp_(0, 1)
+                self.average.update(self.image)
                 if callback is not None:
                     callback(STIterate(scale, i, actual_its, loss2.item()))
+
+            with torch.no_grad():
+                self.image.copy_(self.average.get())
 
         return self.get_image()

@@ -257,7 +257,8 @@ def scale_adam(state, shape):
 
 @dataclass
 class STIterate:
-    scale: int
+    w: int
+    h: int
     i: int
     i_max: int
     loss: float
@@ -398,7 +399,7 @@ class StyleTransfer:
                     self.image.clamp_(0, 1)
                 self.average.update(self.image)
                 if callback is not None:
-                    callback(STIterate(scale, i, actual_its, loss2.item()))
+                    callback(STIterate(cw, ch, i, actual_its, loss2.item()))
 
             with torch.no_grad():
                 self.image.copy_(self.average.get())

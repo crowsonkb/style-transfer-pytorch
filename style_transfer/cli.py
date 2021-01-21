@@ -113,11 +113,11 @@ def main():
         nonlocal progress
         if iterate.i == 1:
             progress = tqdm(total=iterate.i_max, dynamic_ncols=True)
-        tqdm.write(f'{iterate.scale} {iterate.i} {iterate.loss:g}')
+        tqdm.write(f'{iterate.w}x{iterate.h} {iterate.i} {iterate.loss:g}')
         progress.update()
         if iterate.i == iterate.i_max:
             progress.close()
-            if iterate.scale != args.end_scale:
+            if max(iterate.w, iterate.h) != args.end_scale:
                 save_image(st.get_image(), args.output)
         elif iterate.i % 50 == 0:
             save_image(st.get_image(), args.output)

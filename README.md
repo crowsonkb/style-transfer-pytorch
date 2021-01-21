@@ -11,7 +11,7 @@ Python 3.8+ is required (it may work on 3.7 but has not been tested).
 To install `style-transfer-pytorch`, first clone the repository, then run the command:
 
 ```sh
-pip install PATH_TO_REPO
+pip install -e PATH_TO_REPO
 ```
 
 This will install the `style_transfer` CLI tool.

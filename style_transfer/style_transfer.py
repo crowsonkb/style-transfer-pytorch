@@ -232,6 +232,11 @@ def interpolate(*args, **kwargs):
         return F.interpolate(*args, **kwargs)
 
 
+def proj_mono(input):
+    mono = input.mean(dim=1, keepdims=True)
+    return torch.cat([mono, mono, mono], dim=1)
+
+
 def scale_adam(state, shape):
     state = copy.deepcopy(state)
     for group in state['state'].values():
@@ -289,6 +294,7 @@ class StyleTransfer:
                 init: str = 'content',
                 style_scale_fac: float = 1.,
                 style_size: int = None,
+                mono: bool = False,
                 callback=None):
 
         min_scale = min(min_scale, end_scale)
@@ -318,6 +324,8 @@ class StyleTransfer:
         else:
             raise ValueError("init must be one of 'content', 'gray', 'random'")
         self.image = self.image.to(self.device)
+        if mono:
+            self.image.copy_(proj_mono(self.image))
         self.average = EMA(self.image, avg_decay)
 
         opt = None
@@ -382,6 +390,8 @@ class StyleTransfer:
                 loss2 = crit.get_scaled_loss()
                 opt.step()
                 with torch.no_grad():
+                    if mono:
+                        self.image.copy_(proj_mono(self.image))
                     self.image.clamp_(0, 1)
                 self.average.update(self.image)
                 if callback is not None:

@@ -80,8 +80,8 @@ class TVLoss(nn.Module):
     def __init__(self, p, eps=1e-8):
         super().__init__()
         assert p in {1, 2}
-        self.p = p
-        self.eps = eps
+        self.register_buffer('p', torch.tensor(p))
+        self.register_buffer('eps', torch.tensor(eps))
 
     def forward(self, input):
         input = F.pad(input, (0, 1, 0, 1), 'replicate')
@@ -129,7 +129,7 @@ class Scale(nn.Module):
     def __init__(self, module, scale):
         super().__init__()
         self.module = module
-        self.scale = scale
+        self.register_buffer('scale', torch.tensor(scale))
 
     def extra_repr(self):
         return f'scale={self.scale!r}'
@@ -145,8 +145,8 @@ class NormalizeGrad(nn.Module):
         super().__init__()
         self.module = module
         self.module.register_backward_hook(self._hook)
-        self.scale = scale
-        self.eps = eps
+        self.register_buffer('scale', torch.tensor(scale))
+        self.register_buffer('eps', torch.tensor(eps))
         self.fac = None
         self.loss = None
 
@@ -186,11 +186,12 @@ class LayerApply(nn.Module):
         return self.module(input[self.layer])
 
 
-class EMA:
+class EMA(nn.Module):
     def __init__(self, input, decay):
-        self.decay = decay
-        self.value = torch.zeros_like(input)
-        self.accum = 1
+        super().__init__()
+        self.register_buffer('value', torch.zeros_like(input))
+        self.register_buffer('decay', torch.tensor(decay))
+        self.register_buffer('accum', torch.tensor(1.))
         self.update(input)
 
     def get(self):

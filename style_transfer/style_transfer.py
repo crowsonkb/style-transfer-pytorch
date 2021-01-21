@@ -240,6 +240,10 @@ def scale_adam(state, shape):
         group['exp_avg'] = interpolate(exp_avg, shape, mode='bicubic')
         group['exp_avg_sq'] = interpolate(exp_avg_sq, shape, mode='bilinear')
         group['exp_avg_sq'].relu_()
+        if 'max_exp_avg_sq' in group:
+            max_exp_avg_sq = group['max_exp_avg_sq']
+            group['max_exp_avg_sq'] = interpolate(max_exp_avg_sq, shape, mode='bilinear')
+            group['max_exp_avg_sq'].relu_()
     return state
 
 

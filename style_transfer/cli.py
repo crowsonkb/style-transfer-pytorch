@@ -73,6 +73,8 @@ def main():
                    help='the number of iterations per scale')
     p.add_argument('--initial-iterations', '-ii', **arg_info('initial_iterations'),
                    help='the number of iterations on the first scale')
+    p.add_argument('--save-every', type=int, default=50,
+                   help='save the image every SAVE_EVERY iterations')
     p.add_argument('--step-size', '-ss', **arg_info('step_size'),
                    help='the step size (learning rate)')
     p.add_argument('--avg-decay', '-ad', **arg_info('avg_decay'),
@@ -117,7 +119,7 @@ def main():
             progress.close()
             if max(iterate.w, iterate.h) != args.end_scale:
                 save_image(st.get_image(), args.output)
-        elif iterate.i % 50 == 0:
+        elif iterate.i % args.save_every == 0:
             save_image(st.get_image(), args.output)
 
     try:

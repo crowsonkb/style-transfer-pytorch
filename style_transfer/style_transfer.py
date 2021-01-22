@@ -53,6 +53,12 @@ class VGGFeatures(nn.Module):
         return feats
 
 
+def scaled_mse_loss(input, target, eps=1e-8):
+    """A custom loss function, MSE with gradient L1 norm approximately 1."""
+    diff = input - target
+    return diff.pow(2).sum() / (diff.abs().sum() + eps)
+
+
 class ContentLoss(nn.Module):
     def __init__(self, target, eps=1e-8):
         super().__init__()
@@ -60,8 +66,7 @@ class ContentLoss(nn.Module):
         self.register_buffer('eps', torch.tensor(eps))
 
     def forward(self, input):
-        diff = input - self.target
-        return diff.pow(2).mean() / (diff.abs().mean() + self.eps)
+        return scaled_mse_loss(input, self.target)
 
 
 class StyleLoss(nn.Module):
@@ -73,11 +78,11 @@ class StyleLoss(nn.Module):
     @staticmethod
     def get_target(target):
         mat = target.flatten(-2)
+        # Normalization differs from Gatys et al. and Johnson et al.
         return mat @ mat.transpose(-2, -1) / mat.shape[-1]
 
     def forward(self, input):
-        diff = self.get_target(input) - self.target
-        return diff.pow(2).mean() / (diff.abs().mean() + self.eps)
+        return scaled_mse_loss(self.get_target(input), self.target)
 
 
 class TVLoss(nn.Module):
@@ -230,7 +235,7 @@ class StyleTransfer:
         self.content_layers = [22]
 
         self.style_layers = [1, 6, 11, 20, 29]
-        style_weights = [256, 64, 16, 4, 1]
+        style_weights = [256, 64, 16, 4, 1]  # Custom weighting of style layers
         weight_sum = sum(abs(w) for w in style_weights)
         self.style_weights = [w / weight_sum for w in style_weights]
 

@@ -54,18 +54,21 @@ class VGGFeatures(nn.Module):
 
 
 class ContentLoss(nn.Module):
-    def __init__(self, target):
+    def __init__(self, target, eps=1e-8):
         super().__init__()
         self.register_buffer('target', target)
+        self.register_buffer('eps', torch.tensor(eps))
 
     def forward(self, input):
-        return F.mse_loss(input, self.target, reduction='sum')
+        diff = input - self.target
+        return diff.pow(2).mean() / (abs(diff).mean() + self.eps)
 
 
 class StyleLoss(nn.Module):
-    def __init__(self, target):
+    def __init__(self, target, eps=1e-8):
         super().__init__()
         self.register_buffer('target', target)
+        self.register_buffer('eps', torch.tensor(eps))
 
     @staticmethod
     def get_target(target):
@@ -73,7 +76,8 @@ class StyleLoss(nn.Module):
         return mat @ mat.transpose(-2, -1) / mat.shape[-1]
 
     def forward(self, input):
-        return F.mse_loss(self.get_target(input), self.target, reduction='sum')
+        diff = self.get_target(input) - self.target
+        return diff.pow(2).mean() / (abs(diff).mean() + self.eps)
 
 
 class TVLoss(nn.Module):
@@ -98,31 +102,19 @@ class WeightedLoss(nn.ModuleList):
         super().__init__(losses)
         self.weights = weights
         self.verbose = verbose
-        self.losses = None
 
     def _print_losses(self, losses):
         for i, loss in enumerate(losses):
             print(f'{i}: {loss.item():g}')
 
-    def get_scaled_loss(self):
+    def forward(self, *args, **kwargs):
         losses = []
-        for i, crit in enumerate(self):
-            if self.weights[i] and hasattr(crit, 'get_scaled_loss'):
-                losses.append(crit.get_scaled_loss() * self.weights[i])
-            else:
-                losses.append(self.losses[i])
+        for loss, weight in zip(self, self.weights):
+            loss_value = loss(*args, **kwargs) * weight if weight else torch.tensor(0)
+            losses.append(loss_value)
         if self.verbose:
             self._print_losses(losses)
         return sum(losses)
-
-    def forward(self, *args, **kwargs):
-        self.losses = []
-        for loss, weight in zip(self, self.weights):
-            loss_value = loss(*args, **kwargs) * weight if weight else torch.tensor(0)
-            self.losses.append(loss_value)
-        if self.verbose:
-            self._print_losses(self.losses)
-        return sum(self.losses)
 
 
 class Scale(nn.Module):
@@ -136,41 +128,6 @@ class Scale(nn.Module):
 
     def forward(self, *args, **kwargs):
         return self.module(*args, **kwargs) * self.scale
-
-
-class NormalizeGrad(nn.Module):
-    """Normalizes and optionally scales the enclosed module's gradient."""
-
-    def __init__(self, module, scale=1, eps=1e-8):
-        super().__init__()
-        self.module = module
-        self.module.register_backward_hook(self._hook)
-        self.register_buffer('scale', torch.tensor(scale))
-        self.register_buffer('eps', torch.tensor(eps))
-        self.fac = None
-        self.loss = None
-
-    def _hook(self, module, grad_input, grad_output):
-        grad, *rest = grad_input
-        if grad is None:
-            return
-        dims = list(range(1, grad.ndim))
-        norm = abs(grad).sum(dim=dims, keepdims=True)
-        self.fac = self.scale / (norm + self.eps)
-        return grad * self.fac, *rest
-
-    def get_scaled_loss(self):
-        loss = self.loss.clone()
-        with torch.no_grad():
-            loss *= self.fac.mean()
-            return loss
-
-    def extra_repr(self):
-        return f'scale={self.scale!r}'
-
-    def forward(self, *args, **kwargs):
-        self.loss = self.module(*args, **kwargs)
-        return self.loss
 
 
 class LayerApply(nn.Module):
@@ -347,11 +304,9 @@ class StyleTransfer:
             print(f'Processing content image ({cw}x{ch})...')
             content_feats = self.model(content, layers=self.content_layers)
             content_losses = []
-            for i, layer in enumerate(self.content_layers):
-                weight = content_weights[i]
+            for layer in self.content_layers:
                 target = content_feats[layer]
-                loss = NormalizeGrad(LayerApply(ContentLoss(target), layer), abs(weight))
-                content_losses.append(loss)
+                content_losses.append(LayerApply(ContentLoss(target), layer))
 
             style_targets = {}
             style_losses = []
@@ -370,11 +325,9 @@ class StyleTransfer:
                         style_targets[layer] = target
                     else:
                         style_targets[layer] += target
-            for i, layer in enumerate(self.style_layers):
-                weight = self.style_weights[i]
+            for layer in self.style_layers:
                 target = style_targets[layer]
-                loss = NormalizeGrad(LayerApply(StyleLoss(target), layer), abs(weight))
-                style_losses.append(loss)
+                style_losses.append(LayerApply(StyleLoss(target), layer))
 
             crit = WeightedLoss([*content_losses, *style_losses, *tv_losses],
                                 [*content_weights, *self.style_weights, *tv_weights])
@@ -391,7 +344,6 @@ class StyleTransfer:
                 loss = crit(feats)
                 opt.zero_grad()
                 loss.backward()
-                loss2 = crit.get_scaled_loss()
                 opt.step()
                 with torch.no_grad():
                     if mono:
@@ -399,7 +351,7 @@ class StyleTransfer:
                     self.image.clamp_(0, 1)
                 self.average.update(self.image)
                 if callback is not None:
-                    callback(STIterate(cw, ch, i, actual_its, loss2.item()))
+                    callback(STIterate(cw, ch, i, actual_its, loss.item()))
 
             with torch.no_grad():
                 self.image.copy_(self.average.get())

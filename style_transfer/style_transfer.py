@@ -21,14 +21,25 @@ class VGGFeatures(nn.Module):
     def __init__(self, layers, pooling='max'):
         super().__init__()
         self.layers = sorted(set(layers))
+
+        # The PyTorch trained VGG-19 expects sRGB inputs in the range [0, 1] which are then
+        # normalized according to this transform, different from the original model.
         self.normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                               std=[0.229, 0.224, 0.225])
+
+        # The PyTorch trained VGG-19 has different parameters from the original model.
         self.model = models.vgg19(pretrained=True).features[:self.layers[-1] + 1]
+
+        # Reduces edge artifacts.
         self.model[0] = self._change_padding_mode(self.model[0], 'replicate')
+
         pool_scale = self.pooling_scales[pooling]
         for i, layer in enumerate(self.model):
             if isinstance(layer, nn.MaxPool2d):
+                # Changing the pooling type from max results in the scale of activations
+                # changing, so rescale them. Also change ceil_mode to True.
                 self.model[i] = Scale(self.poolings[pooling](2, ceil_mode=True), pool_scale)
+
         self.model.eval()
         self.model.requires_grad_(False)
 
@@ -78,7 +89,7 @@ class StyleLoss(nn.Module):
     @staticmethod
     def get_target(target):
         mat = target.flatten(-2)
-        # Normalization differs from Gatys et al. and Johnson et al.
+        # The Gram matrix normalization differs from Gatys et al. and Johnson et al.
         return mat @ mat.transpose(-2, -1) / mat.shape[-1]
 
     def forward(self, input):
@@ -86,6 +97,9 @@ class StyleLoss(nn.Module):
 
 
 class TVLoss(nn.Module):
+    """Total variation loss, which supports L1 vectorial total variation (p=1) and L2 total
+    variation (p=2) as in Mahendran et al."""
+
     def __init__(self, p, eps=1e-8):
         super().__init__()
         assert p in {1, 2}
@@ -149,6 +163,8 @@ class LayerApply(nn.Module):
 
 
 class EMA(nn.Module):
+    """A bias-corrected exponential moving average (as in Adam)."""
+
     def __init__(self, input, decay):
         super().__init__()
         self.register_buffer('value', torch.zeros_like(input))
@@ -203,6 +219,7 @@ def proj_mono(input):
 
 
 def scale_adam(state, shape):
+    """Prepares a state dict to warm-start the Adam optimizer at a new scale."""
     state = copy.deepcopy(state)
     for group in state['state'].values():
         exp_avg = group['exp_avg']
@@ -235,7 +252,7 @@ class StyleTransfer:
         self.content_layers = [22]
 
         self.style_layers = [1, 6, 11, 20, 29]
-        style_weights = [256, 64, 16, 4, 1]  # Custom weighting of style layers
+        style_weights = [256, 64, 16, 4, 1]  # Custom weighting of style layers.
         weight_sum = sum(abs(w) for w in style_weights)
         self.style_weights = [w / weight_sum for w in style_weights]
 
@@ -296,12 +313,14 @@ class StyleTransfer:
 
         opt = None
 
+        # Stylize the image at successively finer scales, each greater by a factor of sqrt(2).
         for scale in scales:
             cw, ch = size_to_fit(content_img.size, scale, scale_up=True)
             content = TF.to_tensor(content_img.resize((cw, ch), Image.LANCZOS))[None]
             content = content.to(self.device)
 
             self.image = interpolate(self.image.detach(), (ch, cw), mode='bicubic').clamp(0, 1)
+            # Warm-start the average iterate with the old scale's average iterate.
             new_avg = interpolate(self.average.get(), (ch, cw), mode='bicubic').clamp(0, 1)
             self.average.mutate(new_avg)
             self.image.requires_grad_()
@@ -324,6 +343,7 @@ class StyleTransfer:
                 style = style.to(self.device)
                 print(f'Processing style image ({sw}x{sh})...')
                 style_feats = self.model(style, layers=self.style_layers)
+                # Take the weighted average of multiple style targets (Gram matrices).
                 for layer in self.style_layers:
                     target = StyleLoss.get_target(style_feats[layer]) * style_img_weights[i]
                     if layer not in style_targets:
@@ -338,6 +358,7 @@ class StyleTransfer:
                                 [*content_weights, *self.style_weights, *tv_weights])
 
             opt2 = optim.Adam([self.image], lr=step_size)
+            # Warm-start the Adam optimizer if this is not the first scale.
             if scale != scales[0]:
                 opt_state = scale_adam(opt.state_dict(), (ch, cw))
                 opt2.load_state_dict(opt_state)
@@ -351,13 +372,16 @@ class StyleTransfer:
                 loss.backward()
                 opt.step()
                 with torch.no_grad():
+                    # Enforce monochrome constraint if it is enabled.
                     if mono:
                         self.image.copy_(proj_mono(self.image))
+                    # Enforce box constraints.
                     self.image.clamp_(0, 1)
                 self.average.update(self.image)
                 if callback is not None:
                     callback(STIterate(cw, ch, i, actual_its, loss.item()))
 
+            # Initialize each new scale with the previous scale's averaged iterate.
             with torch.no_grad():
                 self.image.copy_(self.average.get())
 

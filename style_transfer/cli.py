@@ -112,7 +112,8 @@ def main():
         nonlocal progress
         if iterate.i == 1:
             progress = tqdm(total=iterate.i_max, dynamic_ncols=True)
-        tqdm.write(f'{iterate.w}x{iterate.h} {iterate.i} {iterate.loss:g}')
+        msg = 'Size: {}x{}, iteration: {}, loss: {:g}'
+        tqdm.write(msg.format(iterate.w, iterate.h, iterate.i, iterate.loss))
         progress.update()
         if iterate.i == iterate.i_max:
             progress.close()

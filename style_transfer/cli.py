@@ -62,9 +62,9 @@ def main():
     p.add_argument('--content-weight', '-cw', **arg_info('content_weight'),
                    help='the content weight')
     p.add_argument('--tv-weight-1', '-tw1', **arg_info('tv_weight_1'),
-                   help='the L1 smoothing weight')
+                   help='the L1 (edge-preserving) smoothing weight')
     p.add_argument('--tv-weight-2', '-tw', '-tw2', **arg_info('tv_weight_2'),
-                   help='the L2 smoothing weight')
+                   help='the L2 (non-edge-preserving) smoothing weight')
     p.add_argument('--min-scale', '-ms', **arg_info('min_scale'),
                    help='the minimum scale (max image dim), in pixels')
     p.add_argument('--end-scale', '-s', **arg_info('end_scale'),

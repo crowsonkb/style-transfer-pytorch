@@ -1,6 +1,6 @@
 # style-transfer-pytorch
 
-An implementation of neural style transfer ([A Neural Algorithm of Artistic Style](https://arxiv.org/abs/1508.06576)) in PyTorch, supporting CPUs and CUDA GPUs. It performs automatic multi-scale (coarse-to-fine) stylization for good quality output at high resolutions.
+An implementation of neural style transfer ([A Neural Algorithm of Artistic Style](https://arxiv.org/abs/1508.06576)) in PyTorch, supporting CPUs and Nvidia GPUs. It performs automatic multi-scale (coarse-to-fine) stylization for good quality output at high resolutions.
 
 ## Installation
 

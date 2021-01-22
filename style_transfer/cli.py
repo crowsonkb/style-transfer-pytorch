@@ -85,8 +85,6 @@ def main():
                    help='the fixed scale of the style at different content scales')
     p.add_argument('--pooling', type=str, default='max', choices=['max', 'average', 'l2'],
                    help='the model\'s pooling mode')
-    p.add_argument('--mono', default=False, action='store_true',
-                   help='use monochrome mode')
 
     args = p.parse_args()
 

@@ -212,11 +212,6 @@ def interpolate(*args, **kwargs):
         return F.interpolate(*args, **kwargs)
 
 
-def proj_mono(input):
-    mono = input.mean(dim=1, keepdims=True)
-    return torch.cat([mono, mono, mono], dim=1)
-
-
 def scale_adam(state, shape):
     """Prepares a state dict to warm-start the Adam optimizer at a new scale."""
     state = copy.deepcopy(state)
@@ -276,7 +271,6 @@ class StyleTransfer:
                 init: str = 'content',
                 style_scale_fac: float = 1.,
                 style_size: int = None,
-                mono: bool = False,
                 callback=None):
 
         min_scale = min(min_scale, end_scale)
@@ -306,8 +300,6 @@ class StyleTransfer:
         else:
             raise ValueError("init must be one of 'content', 'gray', 'random'")
         self.image = self.image.to(self.device)
-        if mono:
-            self.image.copy_(proj_mono(self.image))
         self.average = EMA(self.image, avg_decay)
 
         opt = None
@@ -370,11 +362,8 @@ class StyleTransfer:
                 opt.zero_grad()
                 loss.backward()
                 opt.step()
+                # Enforce box constraints.
                 with torch.no_grad():
-                    # Enforce monochrome constraint if it is enabled.
-                    if mono:
-                        self.image.copy_(proj_mono(self.image))
-                    # Enforce box constraints.
                     self.image.clamp_(0, 1)
                 self.average.update(self.image)
                 if callback is not None:

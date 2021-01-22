@@ -61,7 +61,7 @@ class ContentLoss(nn.Module):
 
     def forward(self, input):
         diff = input - self.target
-        return diff.pow(2).mean() / (abs(diff).mean() + self.eps)
+        return diff.pow(2).mean() / (diff.abs().mean() + self.eps)
 
 
 class StyleLoss(nn.Module):
@@ -77,7 +77,7 @@ class StyleLoss(nn.Module):
 
     def forward(self, input):
         diff = self.get_target(input) - self.target
-        return diff.pow(2).mean() / (abs(diff).mean() + self.eps)
+        return diff.pow(2).mean() / (diff.abs().mean() + self.eps)
 
 
 class TVLoss(nn.Module):

@@ -59,7 +59,7 @@ def main():
     p.add_argument('styles', type=Path, nargs='+', metavar='style', help='the style images')
     p.add_argument('--output', '-o', type=Path, default='out.png',
                    help='the output image')
-    p.add_argument('--style-weights', type=float, nargs='+', default=None,
+    p.add_argument('--style-weights', '-sw', type=float, nargs='+', default=None,
                    metavar='STYLE_WEIGHT', help='the relative weights for each style image')
     p.add_argument('--device', type=str, help='the device name to use (omit for auto)')
     p.add_argument('--random-seed', '-r', type=int, default=0,

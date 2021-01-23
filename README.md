@@ -2,6 +2,18 @@
 
 An implementation of neural style transfer ([A Neural Algorithm of Artistic Style](https://arxiv.org/abs/1508.06576)) in PyTorch, supporting CPUs and Nvidia GPUs. It performs automatic multi-scale (coarse-to-fine) stylization for good quality output at high resolutions, as well as other quality-increasing techniques such as gradient normalization and iterate averaging.
 
+## Example outputs (click for the full-sized version)
+
+<a href="https://9285c52c-d9b1-40d1-8ac1-e75634aad92d.s3-us-west-2.amazonaws.com/mst195.jpg"><img src="https://9285c52c-d9b1-40d1-8ac1-e75634aad92d.s3-us-west-2.amazonaws.com/mst195_small.jpg" width="512" height="401"></a>
+
+<a href="https://9285c52c-d9b1-40d1-8ac1-e75634aad92d.s3-us-west-2.amazonaws.com/mst235.jpg"><img src="https://9285c52c-d9b1-40d1-8ac1-e75634aad92d.s3-us-west-2.amazonaws.com/mst235_small.jpg" width="512" height="401"></a>
+
+<a href="https://9285c52c-d9b1-40d1-8ac1-e75634aad92d.s3-us-west-2.amazonaws.com/mst256.jpg"><img src="https://9285c52c-d9b1-40d1-8ac1-e75634aad92d.s3-us-west-2.amazonaws.com/mst256_small.jpg" width="512" height="401"></a>
+
+<a href="https://9285c52c-d9b1-40d1-8ac1-e75634aad92d.s3-us-west-2.amazonaws.com/mst201.jpg"><img src="https://9285c52c-d9b1-40d1-8ac1-e75634aad92d.s3-us-west-2.amazonaws.com/mst201_small.jpg" width="512" height="401"></a>
+
+<a href="https://9285c52c-d9b1-40d1-8ac1-e75634aad92d.s3-us-west-2.amazonaws.com/mst267.jpg"><img src="https://9285c52c-d9b1-40d1-8ac1-e75634aad92d.s3-us-west-2.amazonaws.com/mst267_small.jpg" width="512" height="401"></a>
+
 ## Installation
 
 Python 3.8+ is required (it may work on 3.7 but has not been tested).

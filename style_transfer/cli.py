@@ -110,7 +110,6 @@ def main():
     st = StyleTransfer(device=device, pooling=args.pooling)
     defaults = StyleTransfer.stylize.__kwdefaults__
     st_kwargs = {k: v for k, v in args.__dict__.items() if k in defaults}
-    print(st_kwargs)
 
     progress = None
 

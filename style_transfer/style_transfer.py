@@ -198,12 +198,12 @@ def size_to_fit(size, max_dim, scale_up=False):
 def gen_scales(start, end):
     scale = end
     i = 0
-    scales = []
+    scales = set()
     while scale >= start:
-        scales.insert(0, scale)
+        scales.add(scale)
         i += 1
         scale = round(end / pow(2, i/2))
-    return scales
+    return sorted(scales)
 
 
 def interpolate(*args, **kwargs):

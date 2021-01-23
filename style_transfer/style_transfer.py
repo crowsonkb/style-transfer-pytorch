@@ -262,8 +262,8 @@ class StyleTransfer:
     def stylize(self, content_image, style_images, *,
                 style_weights=None,
                 content_weight: float = 0.01,
-                tv_weight_1: float = 0.,
-                tv_weight_2: float = 0.15,
+                tv_weight_l1: float = 0.,
+                tv_weight_l2: float = 0.15,
                 min_scale: int = 128,
                 end_scale: int = 512,
                 iterations: int = 500,
@@ -288,7 +288,7 @@ class StyleTransfer:
 
         tv_losses = [LayerApply(TVLoss(p=1), 'input'),
                      LayerApply(TVLoss(p=2), 'input')]
-        tv_weights = [tv_weight_1, tv_weight_2]
+        tv_weights = [tv_weight_l1, tv_weight_l2]
 
         scales = gen_scales(min_scale, end_scale)
 

@@ -66,9 +66,9 @@ def main():
                    help='the random seed')
     p.add_argument('--content-weight', '-cw', **arg_info('content_weight'),
                    help='the content weight')
-    p.add_argument('--tv-weight-1', '-tw1', **arg_info('tv_weight_1'),
+    p.add_argument('--tv-weight-l1', '-tw1', **arg_info('tv_weight_l1'),
                    help='the L1 (edge-preserving) smoothing weight')
-    p.add_argument('--tv-weight-2', '-tw', '-tw2', **arg_info('tv_weight_2'),
+    p.add_argument('--tv-weight-l2', '-tw', '-tw2', **arg_info('tv_weight_l2'),
                    help='the L2 (non-edge-preserving) smoothing weight')
     p.add_argument('--min-scale', '-ms', **arg_info('min_scale'),
                    help='the minimum scale (max image dim), in pixels')
@@ -110,6 +110,7 @@ def main():
     st = StyleTransfer(device=device, pooling=args.pooling)
     defaults = StyleTransfer.stylize.__kwdefaults__
     st_kwargs = {k: v for k, v in args.__dict__.items() if k in defaults}
+    print(st_kwargs)
 
     progress = None
 

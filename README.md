@@ -44,7 +44,7 @@ style_transfer CONTENT_IMAGE STYLE_IMAGE [STYLE_IMAGE ...] [-o OUTPUT_IMAGE]
 
 - `-cw` (`--content-weight`) sets the degree to which features from the content image are included in the output image. The default is 0.01.
 
-- `-tw` (`--tv-weight-2`) sets the strength of the smoothness prior. The default is 0.15.
+- `-tw` (`--tv-weight-l2`) sets the strength of the smoothness prior. The default is 0.15.
 
 ## References
 

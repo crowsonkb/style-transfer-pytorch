@@ -18,7 +18,7 @@ An implementation of neural style transfer ([A Neural Algorithm of Artistic Styl
 
 Python 3.8+ is required (it may work on 3.7 but has not been tested).
 
-[PyTorch](https://pytorch.org) is required: follow [their installation instructions](https://pytorch.org/get-started/locally/) before proceeding.
+[PyTorch](https://pytorch.org) is required: follow [their installation instructions](https://pytorch.org/get-started/locally/) before proceeding. If you do not have an Nvidia GPU, select None for CUDA. PyTorch packages for CUDA versions lower than yours will work, but select the highest you can.
 
 To install `style-transfer-pytorch`, first clone the repository, then run the command:
 

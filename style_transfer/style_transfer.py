@@ -216,8 +216,7 @@ def scale_adam(state, shape):
     """Prepares a state dict to warm-start the Adam optimizer at a new scale."""
     state = copy.deepcopy(state)
     for group in state['state'].values():
-        exp_avg = group['exp_avg']
-        exp_avg_sq = group['exp_avg_sq']
+        exp_avg, exp_avg_sq = group['exp_avg'], group['exp_avg_sq']
         group['exp_avg'] = interpolate(exp_avg, shape, mode='bicubic')
         group['exp_avg_sq'] = interpolate(exp_avg_sq, shape, mode='bilinear').relu_()
         if 'max_exp_avg_sq' in group:

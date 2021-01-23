@@ -254,8 +254,8 @@ class StyleTransfer:
         if self.average is not None:
             return TF.to_pil_image(self.average.get()[0].clamp(0, 1))
 
-    def stylize(self, content_img, style_imgs, *,
-                style_img_weights=None,
+    def stylize(self, content_image, style_images, *,
+                style_weights=None,
                 content_weight: float = 0.01,
                 tv_weight_1: float = 0.,
                 tv_weight_2: float = 0.15,
@@ -273,13 +273,13 @@ class StyleTransfer:
         min_scale = min(min_scale, end_scale)
         content_weights = [content_weight / len(self.content_layers)] * len(self.content_layers)
 
-        if style_img_weights is None:
-            style_img_weights = [1 / len(style_imgs)] * len(style_imgs)
+        if style_weights is None:
+            style_weights = [1 / len(style_images)] * len(style_images)
         else:
-            weight_sum = sum(abs(w) for w in style_img_weights)
-            style_img_weights = [weight / weight_sum for weight in style_img_weights]
-        if len(style_imgs) != len(style_img_weights):
-            raise ValueError('style_imgs and style_img_weights must have the same length')
+            weight_sum = sum(abs(w) for w in style_weights)
+            style_weights = [weight / weight_sum for weight in style_weights]
+        if len(style_images) != len(style_weights):
+            raise ValueError('style_images and style_weights must have the same length')
 
         tv_losses = [LayerApply(TVLoss(p=1), 'input'),
                      LayerApply(TVLoss(p=2), 'input')]
@@ -287,9 +287,9 @@ class StyleTransfer:
 
         scales = gen_scales(min_scale, end_scale)
 
-        cw, ch = size_to_fit(content_img.size, scales[0], scale_up=True)
+        cw, ch = size_to_fit(content_image.size, scales[0], scale_up=True)
         if init == 'content':
-            self.image = TF.to_tensor(content_img.resize((cw, ch), Image.LANCZOS))[None]
+            self.image = TF.to_tensor(content_image.resize((cw, ch), Image.LANCZOS))[None]
         elif init == 'gray':
             self.image = torch.rand([1, 3, ch, cw]) / 255 + 0.5
         elif init == 'random':
@@ -303,8 +303,8 @@ class StyleTransfer:
 
         # Stylize the image at successively finer scales, each greater by a factor of sqrt(2).
         for scale in scales:
-            cw, ch = size_to_fit(content_img.size, scale, scale_up=True)
-            content = TF.to_tensor(content_img.resize((cw, ch), Image.LANCZOS))[None]
+            cw, ch = size_to_fit(content_image.size, scale, scale_up=True)
+            content = TF.to_tensor(content_image.resize((cw, ch), Image.LANCZOS))[None]
             content = content.to(self.device)
 
             self.image = interpolate(self.image.detach(), (ch, cw), mode='bicubic').clamp(0, 1)
@@ -322,18 +322,18 @@ class StyleTransfer:
 
             style_targets = {}
             style_losses = []
-            for i, style_img in enumerate(style_imgs):
+            for i, image in enumerate(style_images):
                 if style_size is None:
-                    sw, sh = size_to_fit(style_img.size, round(scale * style_scale_fac))
+                    sw, sh = size_to_fit(image.size, round(scale * style_scale_fac))
                 else:
-                    sw, sh = size_to_fit(style_img.size, style_size)
-                style = TF.to_tensor(style_img.resize((sw, sh), Image.LANCZOS))[None]
+                    sw, sh = size_to_fit(image.size, style_size)
+                style = TF.to_tensor(image.resize((sw, sh), Image.LANCZOS))[None]
                 style = style.to(self.device)
                 print(f'Processing style image ({sw}x{sh})...')
                 style_feats = self.model(style, layers=self.style_layers)
                 # Take the weighted average of multiple style targets (Gram matrices).
                 for layer in self.style_layers:
-                    target = StyleLoss.get_target(style_feats[layer]) * style_img_weights[i]
+                    target = StyleLoss.get_target(style_feats[layer]) * style_weights[i]
                     if layer not in style_targets:
                         style_targets[layer] = target
                     else:

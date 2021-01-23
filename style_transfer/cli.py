@@ -51,11 +51,11 @@ def main():
         return {'default': defaults[arg], 'type': default_types[arg]}
 
     p.add_argument('content', type=str, help='the content image')
-    p.add_argument('styles', type=str, nargs='+', help='the style images')
+    p.add_argument('styles', type=str, nargs='+', metavar='style', help='the style images')
     p.add_argument('--output', '-o', type=str, default='out.png',
                    help='the output image')
-    p.add_argument('--style-img-weights', type=float, nargs='+', default=None,
-                   help='the relative weights for each style image')
+    p.add_argument('--style-weights', type=float, nargs='+', default=None,
+                   metavar='STYLE_WEIGHT', help='the relative weights for each style image')
     p.add_argument('--device', type=str, help='the device name to use (omit for auto)')
     p.add_argument('--random-seed', '-r', type=int, default=0,
                    help='the random seed')

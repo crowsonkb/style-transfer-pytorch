@@ -66,7 +66,7 @@ class VGGFeatures(nn.Module):
 def scaled_mse_loss(input, target, eps=1e-8):
     """A custom loss function, MSE with gradient L1 norm approximately 1."""
     diff = input - target
-    return diff.pow(2).sum() / (diff.abs().sum() + eps)
+    return diff.pow(2).sum() / diff.abs().sum().add(eps)
 
 
 class ContentLoss(nn.Module):
@@ -76,7 +76,7 @@ class ContentLoss(nn.Module):
         self.register_buffer('eps', torch.tensor(eps))
 
     def forward(self, input):
-        return scaled_mse_loss(input, self.target)
+        return scaled_mse_loss(input, self.target, eps=self.eps)
 
 
 class StyleLoss(nn.Module):
@@ -92,7 +92,7 @@ class StyleLoss(nn.Module):
         return mat @ mat.transpose(-2, -1) / mat.shape[-1]
 
     def forward(self, input):
-        return scaled_mse_loss(self.get_target(input), self.target)
+        return scaled_mse_loss(self.get_target(input), self.target, eps=self.eps)
 
 
 class TVLoss(nn.Module):
@@ -111,8 +111,8 @@ class TVLoss(nn.Module):
         y_diff = input[..., :-1, :-1] - input[..., 1:, :-1]
         diff = x_diff**2 + y_diff**2
         if self.p == 1:
-            diff = (diff + self.eps).mean(dim=1).sqrt()
-        return torch.mean(diff)
+            diff = diff.add(self.eps).mean(dim=1).sqrt()
+        return diff.mean()
 
 
 class WeightedLoss(nn.ModuleList):
@@ -219,12 +219,10 @@ def scale_adam(state, shape):
         exp_avg = group['exp_avg']
         exp_avg_sq = group['exp_avg_sq']
         group['exp_avg'] = interpolate(exp_avg, shape, mode='bicubic')
-        group['exp_avg_sq'] = interpolate(exp_avg_sq, shape, mode='bilinear')
-        group['exp_avg_sq'].relu_()
+        group['exp_avg_sq'] = interpolate(exp_avg_sq, shape, mode='bilinear').relu_()
         if 'max_exp_avg_sq' in group:
             max_exp_avg_sq = group['max_exp_avg_sq']
-            group['max_exp_avg_sq'] = interpolate(max_exp_avg_sq, shape, mode='bilinear')
-            group['max_exp_avg_sq'].relu_()
+            group['max_exp_avg_sq'] = interpolate(max_exp_avg_sq, shape, mode='bilinear').relu_()
     return state
 
 

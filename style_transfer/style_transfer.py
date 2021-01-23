@@ -21,12 +21,13 @@ class VGGFeatures(nn.Module):
         super().__init__()
         self.layers = sorted(set(layers))
 
-        # The PyTorch trained VGG-19 expects sRGB inputs in the range [0, 1] which are then
-        # normalized according to this transform, different from the original model.
+        # The PyTorch pre-trained VGG-19 expects sRGB inputs in the range [0, 1] which are then
+        # normalized according to this transform, unlike Simonyan et al.'s original model.
         self.normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                               std=[0.229, 0.224, 0.225])
 
-        # The PyTorch trained VGG-19 has different parameters from the original model.
+        # The PyTorch pre-trained VGG-19 has different parameters from Simonyan et al.'s original
+        # model.
         self.model = models.vgg19(pretrained=True).features[:self.layers[-1] + 1]
 
         # Reduces edge artifacts.
@@ -36,7 +37,8 @@ class VGGFeatures(nn.Module):
         for i, layer in enumerate(self.model):
             if isinstance(layer, nn.MaxPool2d):
                 # Changing the pooling type from max results in the scale of activations
-                # changing, so rescale them. Also change ceil_mode to True.
+                # changing, so rescale them. Gatys et al. (2015) do not do this. Also change
+                # ceil_mode to True.
                 self.model[i] = Scale(self.poolings[pooling](2, ceil_mode=True), pool_scale)
 
         self.model.eval()
@@ -64,7 +66,8 @@ class VGGFeatures(nn.Module):
 
 
 def scaled_mse_loss(input, target, eps=1e-8):
-    """A custom loss function, MSE with gradient L1 norm approximately 1."""
+    """Computes MSE scaled such that its gradient L1 norm is approximately 1.
+    This differs from Gatys at al. (2015) and Johnson et al."""
     diff = input - target
     return diff.pow(2).sum() / diff.abs().sum().add(eps)
 
@@ -88,7 +91,7 @@ class StyleLoss(nn.Module):
     @staticmethod
     def get_target(target):
         mat = target.flatten(-2)
-        # The Gram matrix normalization differs from Gatys et al. and Johnson et al.
+        # The Gram matrix normalization differs from Gatys et al. (2015) and Johnson et al.
         return mat @ mat.transpose(-2, -1) / mat.shape[-1]
 
     def forward(self, input):
@@ -96,8 +99,8 @@ class StyleLoss(nn.Module):
 
 
 class TVLoss(nn.Module):
-    """Total variation loss, which supports L1 vectorial total variation (p=1) and L2 total
-    variation (p=2) as in Mahendran et al."""
+    """Total variation loss, which supports L1 vectorial total variation (p=1)
+    as in Blomgren at al. and L2 total variation (p=2) as in Mahendran et al."""
 
     def __init__(self, p, eps=1e-8):
         super().__init__()
@@ -162,7 +165,7 @@ class LayerApply(nn.Module):
 
 
 class EMA(nn.Module):
-    """A bias-corrected exponential moving average (as in Adam)."""
+    """A bias-corrected exponential moving average, as in Kingma et al. (Adam)."""
 
     def __init__(self, input, decay):
         super().__init__()
@@ -240,10 +243,12 @@ class StyleTransfer:
         self.image = None
         self.average = None
 
+        # The default content and style layers follow Gatys et al. (2015).
         self.content_layers = [22]
-
         self.style_layers = [1, 6, 11, 20, 29]
-        style_weights = [256, 64, 16, 4, 1]  # Custom weighting of style layers.
+
+        # The weighting of the style layers differs from Gatys et al. (2015) and Johnson et al.
+        style_weights = [256, 64, 16, 4, 1]
         weight_sum = sum(abs(w) for w in style_weights)
         self.style_weights = [w / weight_sum for w in style_weights]
 
@@ -302,6 +307,7 @@ class StyleTransfer:
         opt = None
 
         # Stylize the image at successively finer scales, each greater by a factor of sqrt(2).
+        # This differs from the scheme given in Gatys et al. (2016).
         for scale in scales:
             cw, ch = size_to_fit(content_image.size, scale, scale_up=True)
             content = TF.to_tensor(content_image.resize((cw, ch), Image.LANCZOS))[None]

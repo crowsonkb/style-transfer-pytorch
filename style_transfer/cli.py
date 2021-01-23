@@ -1,6 +1,7 @@
 """Neural style transfer (https://arxiv.org/abs/1508.06576) in PyTorch."""
 
 import argparse
+from pathlib import Path
 import sys
 
 from PIL import Image
@@ -19,9 +20,13 @@ def load_image(path):
 
 
 def save_image(image, path):
+    path = Path(path)
+    kwargs = {}
+    if path.suffix.lower() in {'.jpg', '.jpeg'}:
+        kwargs = {'quality': 95, 'subsampling': 0}
     tqdm.write(f'Writing image to {path}.')
     try:
-        image.save(path)
+        image.save(path, **kwargs)
     except (OSError, ValueError) as err:
         print_error(err)
         sys.exit(1)
@@ -50,9 +55,9 @@ def main():
         default_types = StyleTransfer.stylize.__annotations__
         return {'default': defaults[arg], 'type': default_types[arg]}
 
-    p.add_argument('content', type=str, help='the content image')
-    p.add_argument('styles', type=str, nargs='+', metavar='style', help='the style images')
-    p.add_argument('--output', '-o', type=str, default='out.png',
+    p.add_argument('content', type=Path, help='the content image')
+    p.add_argument('styles', type=Path, nargs='+', metavar='style', help='the style images')
+    p.add_argument('--output', '-o', type=Path, default='out.png',
                    help='the output image')
     p.add_argument('--style-weights', type=float, nargs='+', default=None,
                    metavar='STYLE_WEIGHT', help='the relative weights for each style image')

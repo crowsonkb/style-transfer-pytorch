@@ -14,7 +14,8 @@ setuptools.setup(
         entry_points={
         'console_scripts': ['style_transfer=style_transfer.cli:main'],
     },
-    install_requires=['Pillow>=8.0.0',
+    install_requires=['dataclasses>=0.8;python_version<"3.7"',
+                      'Pillow>=8.0.0',
                       'torch>=1.7.1',
                       'torchvision>=0.8.2',
                       'tqdm>=4.46.0'],

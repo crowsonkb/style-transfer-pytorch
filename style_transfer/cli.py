@@ -44,6 +44,30 @@ def print_error(err):
     print('\033[31m{}:\033[0m {}'.format(type(err).__name__, err), file=sys.stderr)
 
 
+class Callback:
+    def __init__(self, st, args):
+        self.st = st
+        self.args = args
+        self.progress = None
+
+    def __call__(self, iterate):
+        if iterate.i == 1:
+            self.progress = tqdm(total=iterate.i_max, dynamic_ncols=True)
+        msg = 'Size: {}x{}, iteration: {}, loss: {:g}'
+        tqdm.write(msg.format(iterate.w, iterate.h, iterate.i, iterate.loss))
+        self.progress.update()
+        if iterate.i == iterate.i_max:
+            self.progress.close()
+            if max(iterate.w, iterate.h) != self.args.end_scale:
+                save_image(self.st.get_image(), self.args.output)
+        elif iterate.i % self.args.save_every == 0:
+            save_image(self.st.get_image(), self.args.output)
+
+    def close(self):
+        if self.progress is not None:
+            self.progress.close()
+
+
 def main():
     setup_exceptions()
 
@@ -108,32 +132,16 @@ def main():
 
     print('Loading model...')
     st = StyleTransfer(device=device, pooling=args.pooling)
+    callback = Callback(st, args)
     defaults = StyleTransfer.stylize.__kwdefaults__
     st_kwargs = {k: v for k, v in args.__dict__.items() if k in defaults}
-
-    progress = None
-
-    def callback(iterate):
-        nonlocal progress
-        if iterate.i == 1:
-            progress = tqdm(total=iterate.i_max, dynamic_ncols=True)
-        msg = 'Size: {}x{}, iteration: {}, loss: {:g}'
-        tqdm.write(msg.format(iterate.w, iterate.h, iterate.i, iterate.loss))
-        progress.update()
-        if iterate.i == iterate.i_max:
-            progress.close()
-            if max(iterate.w, iterate.h) != args.end_scale:
-                save_image(st.get_image(), args.output)
-        elif iterate.i % args.save_every == 0:
-            save_image(st.get_image(), args.output)
 
     try:
         st.stylize(content_img, style_imgs, **st_kwargs, callback=callback)
     except KeyboardInterrupt:
         pass
     finally:
-        if progress is not None:
-            progress.close()
+        callback.close()
 
     output_image = st.get_image()
     if output_image is not None:

@@ -297,13 +297,18 @@ class StyleTransfer:
         cw, ch = size_to_fit(content_image.size, scales[0], scale_up=True)
         if init == 'content':
             self.image = TF.to_tensor(content_image.resize((cw, ch), Image.LANCZOS))[None]
-            self.image = self.image.to(self.device)
         elif init == 'gray':
-            self.image = torch.rand([1, 3, ch, cw], device=self.device) / 255 + 0.5
+            self.image = torch.rand([1, 3, ch, cw]) / 255 + 0.5
         elif init == 'uniform':
-            self.image = torch.rand([1, 3, ch, cw], device=self.device)
+            self.image = torch.rand([1, 3, ch, cw])
+        elif init == 'style_mean':
+            means = []
+            for i, image in enumerate(style_images):
+                means.append(TF.to_tensor(image).mean(dim=(1, 2)) * style_weights[i])
+            self.image = torch.rand([1, 3, ch, cw]) / 255 + sum(means)[None, :, None, None]
         else:
-            raise ValueError("init must be one of 'content', 'gray', 'uniform'")
+            raise ValueError("init must be one of 'content', 'gray', 'uniform', 'style_mean'")
+        self.image = self.image.to(self.device)
         self.average = EMA(self.image, avg_decay)
 
         opt = None

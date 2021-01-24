@@ -120,6 +120,8 @@ class TVLoss(nn.Module):
 
 class WeightedLoss(nn.ModuleList):
     def __init__(self, losses, weights, verbose=False):
+        if len(losses) != len(weights):
+            raise ValueError('losses must be the same length as weights')
         super().__init__(losses)
         self.weights = weights
         self.verbose = verbose
@@ -295,13 +297,13 @@ class StyleTransfer:
         cw, ch = size_to_fit(content_image.size, scales[0], scale_up=True)
         if init == 'content':
             self.image = TF.to_tensor(content_image.resize((cw, ch), Image.LANCZOS))[None]
+            self.image = self.image.to(self.device)
         elif init == 'gray':
-            self.image = torch.rand([1, 3, ch, cw]) / 255 + 0.5
+            self.image = torch.rand([1, 3, ch, cw], device=self.device) / 255 + 0.5
         elif init == 'random':
-            self.image = torch.rand([1, 3, ch, cw])
+            self.image = torch.rand([1, 3, ch, cw], device=self.device)
         else:
             raise ValueError("init must be one of 'content', 'gray', 'random'")
-        self.image = self.image.to(self.device)
         self.average = EMA(self.image, avg_decay)
 
         opt = None

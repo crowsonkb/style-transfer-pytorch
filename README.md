@@ -1,6 +1,8 @@
 # style-transfer-pytorch
 
-An implementation of neural style transfer ([A Neural Algorithm of Artistic Style](https://arxiv.org/abs/1508.06576)) in PyTorch, supporting CPUs and Nvidia GPUs. It performs automatic multi-scale (coarse-to-fine) stylization for good quality output at high resolutions, as well as other quality-increasing techniques such as gradient normalization and iterate averaging.
+An implementation of neural style transfer ([A Neural Algorithm of Artistic Style](https://arxiv.org/abs/1508.06576)) in PyTorch, supporting CPUs and Nvidia GPUs. The algorithm has been improved from that in the literature by applying a carefully selected gradient normalization method, an alternate weighting of hierarchical representations of the styles, an improved and automatic multi-scale (coarse-to-fine) stylization scheme, and the use of multiple iterate noise reduction methods. It can produce high-quality high resolution stylizations, even up to print resolution if the GPU has sufficient memory.
+
+Improvements and other differences from the literature have been documented in the code's comments.
 
 ## Example outputs (click for the full-sized version)
 
@@ -12,7 +14,7 @@ An implementation of neural style transfer ([A Neural Algorithm of Artistic Styl
 
 <a href="https://9285c52c-d9b1-40d1-8ac1-e75634aad92d.s3-us-west-2.amazonaws.com/mst201.jpg"><img src="https://9285c52c-d9b1-40d1-8ac1-e75634aad92d.s3-us-west-2.amazonaws.com/mst201_small.jpg" width="512" height="401"></a>
 
-<a href="https://9285c52c-d9b1-40d1-8ac1-e75634aad92d.s3-us-west-2.amazonaws.com/mst267.jpg"><img src="https://9285c52c-d9b1-40d1-8ac1-e75634aad92d.s3-us-west-2.amazonaws.com/mst267_small.jpg" width="512" height="401"></a>
+<a href="https://9285c52c-d9b1-40d1-8ac1-e75634aad92d.s3-us-west-2.amazonaws.com/mst310.jpg"><img src="https://9285c52c-d9b1-40d1-8ac1-e75634aad92d.s3-us-west-2.amazonaws.com/mst310_small.jpg" width="512" height="401"></a>
 
 ## Installation
 

@@ -1,8 +1,11 @@
 """Neural style transfer (https://arxiv.org/abs/1508.06576) in PyTorch."""
 
 import argparse
+from dataclasses import asdict
+import json
 from pathlib import Path
 import sys
+import time
 
 from PIL import Image
 import torch
@@ -45,12 +48,16 @@ def print_error(err):
 
 
 class Callback:
-    def __init__(self, st, args):
+    def __init__(self, st, args, start_time):
         self.st = st
         self.args = args
+        self.start_time = start_time
+        self.iterates = []
         self.progress = None
 
     def __call__(self, iterate):
+        self.iterates.append(asdict(iterate))
+        self.iterates[-1]['time'] = time.time() - self.start_time
         if iterate.i == 1:
             self.progress = tqdm(total=iterate.i_max, dynamic_ncols=True)
         msg = 'Size: {}x{}, iteration: {}, loss: {:g}'
@@ -67,8 +74,12 @@ class Callback:
         if self.progress is not None:
             self.progress.close()
 
+    def get_trace(self):
+        return {'args': self.args.__dict__, 'iterates': self.iterates}
+
 
 def main():
+    start_time = time.time()
     setup_exceptions()
 
     p = argparse.ArgumentParser(description=__doc__,
@@ -79,9 +90,9 @@ def main():
         default_types = StyleTransfer.stylize.__annotations__
         return {'default': defaults[arg], 'type': default_types[arg]}
 
-    p.add_argument('content', type=Path, help='the content image')
-    p.add_argument('styles', type=Path, nargs='+', metavar='style', help='the style images')
-    p.add_argument('--output', '-o', type=Path, default='out.png',
+    p.add_argument('content', type=str, help='the content image')
+    p.add_argument('styles', type=str, nargs='+', metavar='style', help='the style images')
+    p.add_argument('--output', '-o', type=str, default='out.png',
                    help='the output image')
     p.add_argument('--style-weights', '-sw', type=float, nargs='+', default=None,
                    metavar='STYLE_WEIGHT', help='the relative weights for each style image')
@@ -132,16 +143,18 @@ def main():
 
     print('Loading model...')
     st = StyleTransfer(device=device, pooling=args.pooling)
-    callback = Callback(st, args)
+    callback = Callback(st, args, start_time)
+
     defaults = StyleTransfer.stylize.__kwdefaults__
     st_kwargs = {k: v for k, v in args.__dict__.items() if k in defaults}
-
     try:
         st.stylize(content_img, style_imgs, **st_kwargs, callback=callback)
     except KeyboardInterrupt:
         pass
     finally:
         callback.close()
+        with open('trace.json', 'w') as fp:
+            json.dump(callback.get_trace(), fp, indent=4)
 
     output_image = st.get_image()
     if output_image is not None:

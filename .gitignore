@@ -1,5 +1,6 @@
 venv*
 __pycache__
 .ipynb_checkpoints
-out.png
+out.*
+trace.json
 *.egg-info

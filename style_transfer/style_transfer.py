@@ -300,10 +300,10 @@ class StyleTransfer:
             self.image = self.image.to(self.device)
         elif init == 'gray':
             self.image = torch.rand([1, 3, ch, cw], device=self.device) / 255 + 0.5
-        elif init == 'random':
+        elif init == 'uniform':
             self.image = torch.rand([1, 3, ch, cw], device=self.device)
         else:
-            raise ValueError("init must be one of 'content', 'gray', 'random'")
+            raise ValueError("init must be one of 'content', 'gray', 'uniform'")
         self.average = EMA(self.image, avg_decay)
 
         opt = None

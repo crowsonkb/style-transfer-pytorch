@@ -19,6 +19,7 @@ setuptools.setup(
                       'torch>=1.7.1',
                       'torchvision>=0.8.2',
                       'tqdm>=4.46.0'],
+    python_requires=">=3.6",
     # TODO: Add classifiers
     classifiers=[],
 )

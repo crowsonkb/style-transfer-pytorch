@@ -260,9 +260,12 @@ class StyleTransfer:
         model = VGGFeatures(self.style_layers + self.content_layers, pooling=pooling)
         self.model = model.to(self.device)
 
+    def get_image_tensor(self):
+        return self.average.get()[0].clamp(0, 1)
+
     def get_image(self):
         if self.average is not None:
-            return TF.to_pil_image(self.average.get()[0].clamp(0, 1))
+            return TF.to_pil_image(self.get_image_tensor())
 
     def stylize(self, content_image, style_images, *,
                 style_weights=None,

@@ -99,23 +99,13 @@ class StyleLoss(nn.Module):
 
 
 class TVLoss(nn.Module):
-    """Total variation loss, which supports L1 vectorial total variation (p=1)
-    as in Blomgren at al. and L2 total variation (p=2) as in Mahendran et al."""
-
-    def __init__(self, p, eps=1e-8):
-        super().__init__()
-        assert p in {1, 2}
-        self.register_buffer('p', torch.tensor(p))
-        self.register_buffer('eps', torch.tensor(eps))
+    """L2 total variation loss, as in Mahendran et al."""
 
     def forward(self, input):
         input = F.pad(input, (0, 1, 0, 1), 'replicate')
-        x_diff = input[..., :-1, :-1] - input[..., :-1, 1:]
-        y_diff = input[..., :-1, :-1] - input[..., 1:, :-1]
-        diff = x_diff**2 + y_diff**2
-        if self.p == 1:
-            diff = diff.add(self.eps).mean(dim=1).sqrt()
-        return diff.mean()
+        x_diff = input[..., :-1, 1:] - input[..., :-1, :-1]
+        y_diff = input[..., 1:, :-1] - input[..., :-1, :-1]
+        return (x_diff**2 + y_diff**2).mean()
 
 
 class WeightedLoss(nn.ModuleList):
@@ -264,8 +254,7 @@ class StyleTransfer:
     def stylize(self, content_image, style_images, *,
                 style_weights=None,
                 content_weight: float = 0.01,
-                tv_weight_l1: float = 0.,
-                tv_weight_l2: float = 0.15,
+                tv_weight: float = 0.3,
                 min_scale: int = 128,
                 end_scale: int = 512,
                 iterations: int = 500,
@@ -288,9 +277,7 @@ class StyleTransfer:
         if len(style_images) != len(style_weights):
             raise ValueError('style_images and style_weights must have the same length')
 
-        tv_losses = [LayerApply(TVLoss(p=1), 'input'),
-                     LayerApply(TVLoss(p=2), 'input')]
-        tv_weights = [tv_weight_l1, tv_weight_l2]
+        tv_loss = LayerApply(TVLoss(), 'input')
 
         scales = gen_scales(min_scale, end_scale)
 
@@ -355,8 +342,8 @@ class StyleTransfer:
                 target = style_targets[layer]
                 style_losses.append(LayerApply(StyleLoss(target), layer))
 
-            crit = WeightedLoss([*content_losses, *style_losses, *tv_losses],
-                                [*content_weights, *self.style_weights, *tv_weights])
+            crit = WeightedLoss([*content_losses, *style_losses, tv_loss],
+                                [*content_weights, *self.style_weights, tv_weight])
 
             opt2 = optim.Adam([self.image], lr=step_size)
             # Warm-start the Adam optimizer if this is not the first scale.

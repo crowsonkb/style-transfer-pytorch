@@ -18,7 +18,7 @@ Improvements and other differences from the literature have been documented in t
 
 ## Installation
 
-Python 3.6+ is required.
+[Python](https://www.python.org/downloads/) 3.6+ is required.
 
 [PyTorch](https://pytorch.org) is required: follow [their installation instructions](https://pytorch.org/get-started/locally/) before proceeding. If you do not have an Nvidia GPU, select None for CUDA. On Linux, you can find out your CUDA version using the `nvidia-smi` command. PyTorch packages for CUDA versions lower than yours will work, but select the highest you can.
 

@@ -35,11 +35,10 @@ class VGGFeatures(nn.Module):
 
         pool_scale = self.pooling_scales[pooling]
         for i, layer in enumerate(self.model):
-            if isinstance(layer, nn.MaxPool2d):
+            if pooling != 'max' and isinstance(layer, nn.MaxPool2d):
                 # Changing the pooling type from max results in the scale of activations
-                # changing, so rescale them. Gatys et al. (2015) do not do this. Also change
-                # ceil_mode to True.
-                self.model[i] = Scale(self.poolings[pooling](2, ceil_mode=True), pool_scale)
+                # changing, so rescale them. Gatys et al. (2015) do not do this.
+                self.model[i] = Scale(self.poolings[pooling](2), pool_scale)
 
         self.model.eval()
         self.model.requires_grad_(False)
@@ -55,6 +54,9 @@ class VGGFeatures(nn.Module):
         return new_conv
 
     def forward(self, input, layers=None):
+        h, w = input.shape[2:4]
+        if min(h, w) < 16:
+            raise ValueError(f'Input is {h}x{w} but must be at least 16x16')
         layers = self.layers if layers is None else sorted(set(layers))
         feats = {'input': input}
         cur = 0

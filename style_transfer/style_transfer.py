@@ -53,11 +53,22 @@ class VGGFeatures(nn.Module):
             new_conv.bias.copy_(conv.bias)
         return new_conv
 
+    @staticmethod
+    def _get_min_size(layers):
+        last_layer = max(layers)
+        min_size = 1
+        for layer in [4, 9, 18, 27, 36]:
+            if last_layer < layer:
+                break
+            min_size *= 2
+        return min_size
+
     def forward(self, input, layers=None):
-        h, w = input.shape[2:4]
-        if min(h, w) < 16:
-            raise ValueError(f'Input is {h}x{w} but must be at least 16x16')
         layers = self.layers if layers is None else sorted(set(layers))
+        h, w = input.shape[2:4]
+        min_size = self._get_min_size(layers)
+        if min(h, w) < min_size:
+            raise ValueError(f'Input is {h}x{w} but must be at least {min_size}x{min_size}')
         feats = {'input': input}
         cur = 0
         for layer in layers:

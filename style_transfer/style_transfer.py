@@ -261,7 +261,7 @@ class StyleTransfer:
         self.model = model.to(self.device)
 
     def get_image_tensor(self):
-        return self.average.get()[0].clamp(0, 1)
+        return self.average.get().detach()[0].clamp(0, 1)
 
     def get_image(self):
         if self.average is not None:

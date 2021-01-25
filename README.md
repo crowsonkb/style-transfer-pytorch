@@ -40,6 +40,8 @@ style_transfer CONTENT_IMAGE STYLE_IMAGE [STYLE_IMAGE ...] [-o OUTPUT_IMAGE]
 
 `style_transfer` has many optional arguments: run it with the `--help` argument to see a full list. Particularly notable ones include:
 
+- `--web` enables a simple web interface while the program is running that allows you to watch its progress. It runs on port 8080 by default, but you can change it with `--port`.
+
 - `--device` manually sets the PyTorch device name. It can be set to `cpu` to force it to run on the CPU on a machine with a supported GPU, or to e.g. `cuda:1` (zero indexed) to select the second CUDA GPU. `style_transfer` will automatically use the first visible CUDA GPU, falling back to the CPU, if it is omitted.
 
 - `-s` (`--end-scale`) sets the maximum image dimension (height and width) of the output. A large image (e.g. 2896x2172) can take around fifteen minutes to generate on an RTX 3090 and will require nearly all of its 24GB of memory. Since both memory usage and runtime increase linearly in the number of pixels (quadratically in the value of the `--end-scale` parameter), users with less GPU memory or who do not want to wait very long are encouraged to use smaller resolutions. The default is 512.

@@ -11,10 +11,12 @@ setuptools.setup(
     author_email='crowsonkb@gmail.com',
     license='MIT',
     packages=['style_transfer'],
-        entry_points={
+    entry_points={
         'console_scripts': ['style_transfer=style_transfer.cli:main'],
     },
-    install_requires=['dataclasses>=0.8;python_version<"3.7"',
+    package_data={'style_transfer': ['web_static/*']},
+    install_requires=['aiohttp>=3.7.2',
+                      'dataclasses>=0.8;python_version<"3.7"',
                       'Pillow>=8.0.0',
                       'torch>=1.7.1',
                       'torchvision>=0.8.2',

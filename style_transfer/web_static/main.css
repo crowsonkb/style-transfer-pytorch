@@ -1,0 +1,11 @@
+body {
+    background-color: rgb(55, 55, 55);
+    color: rgb(224, 224, 224);
+    font-family: -apple-system, BlinkMacSystemFont, "Lucida Grande", Helvetica, Arial, sans-serif;
+    margin: 8px;
+}
+
+#status {
+    color: rgb(224, 55, 55);
+    font-size: 90%;
+}

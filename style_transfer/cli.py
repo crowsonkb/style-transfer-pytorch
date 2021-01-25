@@ -1,17 +1,21 @@
 """Neural style transfer (https://arxiv.org/abs/1508.06576) in PyTorch."""
 
 import argparse
+import atexit
 from dataclasses import asdict
 import json
 from pathlib import Path
+import platform
 import sys
 import time
+import webbrowser
 
 from PIL import Image
 import torch
+import torch.multiprocessing as mp
 from tqdm import tqdm
 
-from . import StyleTransfer
+from . import StyleTransfer, WebInterface
 
 
 def load_image(path):
@@ -43,15 +47,21 @@ def setup_exceptions():
         pass
 
 
+def fix_start_method():
+    if platform.system() == 'Darwin':
+        mp.set_start_method('spawn')
+
+
 def print_error(err):
     print('\033[31m{}:\033[0m {}'.format(type(err).__name__, err), file=sys.stderr)
 
 
 class Callback:
-    def __init__(self, st, args, start_time):
+    def __init__(self, st, args, start_time, web_interface=None):
         self.st = st
         self.args = args
         self.start_time = start_time
+        self.web_interface = web_interface
         self.iterates = []
         self.progress = None
 
@@ -63,10 +73,15 @@ class Callback:
         msg = 'Size: {}x{}, iteration: {}, loss: {:g}'
         tqdm.write(msg.format(iterate.w, iterate.h, iterate.i, iterate.loss))
         self.progress.update()
+        if self.web_interface is not None:
+            self.web_interface.put_iterate(iterate, self.st.get_image_tensor())
         if iterate.i == iterate.i_max:
             self.progress.close()
             if max(iterate.w, iterate.h) != self.args.end_scale:
                 save_image(self.st.get_image(), self.args.output)
+            else:
+                if self.web_interface is not None:
+                    self.web_interface.put_done()
         elif iterate.i % self.args.save_every == 0:
             save_image(self.st.get_image(), self.args.output)
 
@@ -81,6 +96,7 @@ class Callback:
 def main():
     start_time = time.time()
     setup_exceptions()
+    fix_start_method()
 
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -126,11 +142,22 @@ def main():
                    help='the fixed scale of the style at different content scales')
     p.add_argument('--pooling', type=str, default='max', choices=['max', 'average', 'l2'],
                    help='the model\'s pooling mode')
+    p.add_argument('--web', default=False, action='store_true', help='enable the web interface')
+    p.add_argument('--host', type=str, default='0.0.0.0',
+                   help='the host the web interface binds to')
+    p.add_argument('--port', type=int, default=8080,
+                   help='the port the web interface binds to')
+    p.add_argument('--browser', type=str, default='', nargs='?',
+                   help='open a web browser (specify the browser if not system default)')
 
     args = p.parse_args()
 
     content_img = load_image(args.content)
     style_imgs = [load_image(img) for img in args.styles]
+
+    web_interface = WebInterface(args.host, args.port) if args.web else None
+    if web_interface is not None:
+        atexit.register(web_interface.close)
 
     if args.device is None:
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -142,7 +169,15 @@ def main():
 
     print('Loading model...')
     st = StyleTransfer(device=device, pooling=args.pooling)
-    callback = Callback(st, args, start_time)
+    callback = Callback(st, args, start_time, web_interface=web_interface)
+    atexit.register(callback.close)
+
+    url = f'http://{args.host}:{args.port}/'
+    if args.web:
+        if args.browser:
+            webbrowser.get(args.browser).open(url)
+        elif args.browser is None:
+            webbrowser.open(url)
 
     defaults = StyleTransfer.stylize.__kwdefaults__
     st_kwargs = {k: v for k, v in args.__dict__.items() if k in defaults}
@@ -150,14 +185,12 @@ def main():
         st.stylize(content_img, style_imgs, **st_kwargs, callback=callback)
     except KeyboardInterrupt:
         pass
-    finally:
-        callback.close()
-        with open('trace.json', 'w') as fp:
-            json.dump(callback.get_trace(), fp, indent=4)
 
     output_image = st.get_image()
     if output_image is not None:
         save_image(output_image, args.output)
+    with open('trace.json', 'w') as fp:
+        json.dump(callback.get_trace(), fp, indent=4)
 
 
 if __name__ == '__main__':

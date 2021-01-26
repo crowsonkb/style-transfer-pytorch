@@ -96,6 +96,10 @@ function wsConnect() {
             if (average.t > 0) {
                 $("#ips").text((1 / average.get()).toFixed(2));
             }
+            if (msg.gpu_ram) {
+                $("#gpu-ram").text((msg.gpu_ram / 1024 / 1024).toFixed());
+                $("#gpu-ram-wrap").css("display", "");
+            }
             $("#status").css("display", "none");
             reloadImage();
             break;

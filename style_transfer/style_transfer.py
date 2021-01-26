@@ -242,6 +242,7 @@ class STIterate:
     i_max: int
     loss: float
     time: float
+    gpu_ram: int
 
 
 class StyleTransfer:
@@ -382,8 +383,11 @@ class StyleTransfer:
                     self.image.clamp_(0, 1)
                 self.average.update(self.image)
                 if callback is not None:
+                    gpu_ram = 0
+                    if self.device.type == 'cuda':
+                        gpu_ram = torch.cuda.max_memory_allocated(self.device)
                     callback(STIterate(w=cw, h=ch, i=i, i_max=actual_its, loss=loss.item(),
-                                       time=time.time()))
+                                       time=time.time(), gpu_ram=gpu_ram))
 
             # Initialize each new scale with the previous scale's averaged iterate.
             with torch.no_grad():

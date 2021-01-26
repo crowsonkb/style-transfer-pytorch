@@ -31,6 +31,8 @@ def save_image(image, path):
     kwargs = {}
     if path.suffix.lower() in {'.jpg', '.jpeg'}:
         kwargs = {'quality': 95, 'subsampling': 0}
+    elif path.suffix.lower() == '.webp':
+        kwargs = {'quality': 95}
     tqdm.write(f'Writing image to {path}.')
     try:
         image.save(path, **kwargs)

@@ -40,7 +40,7 @@ style_transfer CONTENT_IMAGE STYLE_IMAGE [STYLE_IMAGE ...] [-o OUTPUT_IMAGE]
 
 `style_transfer` has many optional arguments: run it with the `--help` argument to see a full list. Particularly notable ones include:
 
-- `--web` enables a simple web interface while the program is running that allows you to watch its progress. It runs on port 8080 by default, but you can change it with `--port`.
+- `--web` enables a simple web interface while the program is running that allows you to watch its progress. It runs on port 8080 by default, but you can change it with `--port`. If you just want to view the current image and refresh it manually, you can go to `/image`.
 
 - `--device` manually sets the PyTorch device name. It can be set to `cpu` to force it to run on the CPU on a machine with a supported GPU, or to e.g. `cuda:1` (zero indexed) to select the second CUDA GPU. `style_transfer` will automatically use the first visible CUDA GPU, falling back to the CPU, if it is omitted.
 

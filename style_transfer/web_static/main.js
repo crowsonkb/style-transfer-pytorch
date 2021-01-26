@@ -1,8 +1,31 @@
 "use strict";
 
+let average;
 let canLoadImage = true;
 let done = false;
 let ws;
+
+
+function AverageTime(decay) {
+    this.decay = decay;
+    this.last_time = 0;
+    this.value = 0;
+    this.t = -1;
+
+    this.get = () => {
+        return this.value / (1 - Math.pow(this.decay, this.t));
+    };
+
+    this.update = (time) => {
+        this.t += 1;
+        if (this.t) {
+            this.value *= this.decay;
+            this.value += (1 - this.decay) * (time - this.last_time);
+        }
+        this.last_time = time;
+        return this.get();
+    };
+}
 
 
 function reloadImage() {
@@ -65,6 +88,14 @@ function wsConnect() {
             $("#i").text(msg.i);
             $("#i-max").text(msg.i_max);
             $("#loss").text(msg.loss.toFixed(6));
+            if (!average || msg.i == 1) {
+                average = new AverageTime(0.9);
+                $("#ips").text("0");
+            }
+            average.update(msg.time);
+            if (average.t > 0) {
+                $("#ips").text((1 / average.get()).toFixed(2));
+            }
             $("#status").css("display", "none");
             reloadImage();
             break;

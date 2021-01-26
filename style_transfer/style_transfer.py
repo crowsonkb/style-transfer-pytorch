@@ -3,6 +3,7 @@
 import copy
 from dataclasses import dataclass
 from functools import partial
+import time
 import warnings
 
 from PIL import Image
@@ -240,6 +241,7 @@ class STIterate:
     i: int
     i_max: int
     loss: float
+    time: float
 
 
 class StyleTransfer:
@@ -380,7 +382,8 @@ class StyleTransfer:
                     self.image.clamp_(0, 1)
                 self.average.update(self.image)
                 if callback is not None:
-                    callback(STIterate(cw, ch, i, actual_its, loss.item()))
+                    callback(STIterate(w=cw, h=ch, i=i, i_max=actual_its, loss=loss.item(),
+                                       time=time.time()))
 
             # Initialize each new scale with the previous scale's averaged iterate.
             with torch.no_grad():

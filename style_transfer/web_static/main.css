@@ -5,6 +5,14 @@ body {
     margin: 8px;
 }
 
+.ips {
+    font-size: 90%;
+}
+
+.stats {
+    line-height: 1.35;
+}
+
 #status {
     color: rgb(224, 55, 55);
     font-size: 90%;

@@ -7,7 +7,6 @@ import json
 from pathlib import Path
 import platform
 import sys
-import time
 import webbrowser
 
 from PIL import Image
@@ -59,17 +58,15 @@ def print_error(err):
 
 
 class Callback:
-    def __init__(self, st, args, start_time, web_interface=None):
+    def __init__(self, st, args, web_interface=None):
         self.st = st
         self.args = args
-        self.start_time = start_time
         self.web_interface = web_interface
         self.iterates = []
         self.progress = None
 
     def __call__(self, iterate):
         self.iterates.append(asdict(iterate))
-        self.iterates[-1]['time'] = time.time() - self.start_time
         if iterate.i == 1:
             self.progress = tqdm(total=iterate.i_max, dynamic_ncols=True)
         msg = 'Size: {}x{}, iteration: {}, loss: {:g}'
@@ -96,7 +93,6 @@ class Callback:
 
 
 def main():
-    start_time = time.time()
     setup_exceptions()
     fix_start_method()
 
@@ -171,7 +167,7 @@ def main():
 
     print('Loading model...')
     st = StyleTransfer(device=device, pooling=args.pooling)
-    callback = Callback(st, args, start_time, web_interface=web_interface)
+    callback = Callback(st, args, web_interface=web_interface)
     atexit.register(callback.close)
 
     url = f'http://{args.host}:{args.port}/'

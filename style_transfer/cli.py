@@ -198,7 +198,7 @@ def main():
         print('CPU threads:', torch.get_num_threads())
     if device.type == 'cuda':
         props = torch.cuda.get_device_properties(device)
-        print('GPU type:', props.name)
+        print(f'GPU type: {props.name} (compute {props.major}.{props.minor})')
         print('GPU RAM:', round(props.total_memory / 1024 / 1024), 'MB')
 
     web_interface = None

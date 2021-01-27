@@ -38,7 +38,7 @@ If you have a supported GPU and `style_transfer` is using the CPU, try using the
 style_transfer CONTENT_IMAGE STYLE_IMAGE [STYLE_IMAGE ...] [-o OUTPUT_IMAGE]
 ```
 
-Input images will be converted to sRGB when loaded, and output images have the sRGB colorspace. If the output image is a TIFF file, it will be written with 16 bits per channel.
+Input images will be converted to sRGB when loaded, and output images have the sRGB colorspace. If the output image is a TIFF file, it will be written with 16 bits per channel. Alpha channels in the inputs will be ignored.
 
 `style_transfer` has many optional arguments: run it with the `--help` argument to see a full list. Particularly notable ones include:
 

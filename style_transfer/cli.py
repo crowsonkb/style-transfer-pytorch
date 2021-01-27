@@ -22,12 +22,12 @@ from . import srgb_profile, StyleTransfer, WebInterface
 
 def load_image(path):
     try:
-        image = Image.open(path).convert('RGB')
+        image = Image.open(path)
         if 'icc_profile' not in image.info:
-            return image
+            return image.convert('RGB')
         src_prof = ImageCms.getOpenProfile(io.BytesIO(image.info['icc_profile']))
         dst_prof = ImageCms.getOpenProfile(io.BytesIO(srgb_profile))
-        tf = ImageCms.buildTransformFromOpenProfiles(src_prof, dst_prof, 'RGB', 'RGB')
+        tf = ImageCms.buildTransformFromOpenProfiles(src_prof, dst_prof, image.mode, 'RGB')
         return tf.apply(image)
     except OSError as err:
         print_error(err)

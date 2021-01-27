@@ -32,7 +32,7 @@ class DCJSONEncoder(json.JSONEncoder):
     def default(self, obj):
         if is_dataclass(obj):
             dct = dict(obj.__dict__)
-            dct['type'] = type(obj).__name__
+            dct['_type'] = type(obj).__name__
             return dct
         return super().default(obj)
 

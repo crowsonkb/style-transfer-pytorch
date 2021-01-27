@@ -79,7 +79,7 @@ function wsConnect() {
     ws.onmessage = (e) => {
         let msg = JSON.parse(e.data);
         let dpr = Math.min(window.devicePixelRatio, 2);
-        switch (msg.type) {
+        switch (msg._type) {
         case "STIterate":
             $("#image").attr("width", msg.w / dpr);
             $("#image").attr("height", msg.h / dpr);

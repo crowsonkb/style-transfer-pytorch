@@ -3,13 +3,14 @@
 import argparse
 import atexit
 from dataclasses import asdict
+import io
 import json
 from pathlib import Path
 import platform
 import sys
 import webbrowser
 
-from PIL import Image
+from PIL import Image, ImageCms
 import torch
 import torch.multiprocessing as mp
 from tqdm import tqdm
@@ -19,7 +20,13 @@ from . import srgb_profile, StyleTransfer, WebInterface
 
 def load_image(path):
     try:
-        return Image.open(path).convert('RGB')
+        image = Image.open(path).convert('RGB')
+        if 'icc_profile' not in image.info:
+            return image
+        src_prof = ImageCms.getOpenProfile(io.BytesIO(image.info['icc_profile']))
+        dst_prof = ImageCms.getOpenProfile(io.BytesIO(srgb_profile))
+        tf = ImageCms.buildTransformFromOpenProfiles(src_prof, dst_prof, 'RGB', 'RGB')
+        return tf.apply(image)
     except OSError as err:
         print_error(err)
         sys.exit(1)

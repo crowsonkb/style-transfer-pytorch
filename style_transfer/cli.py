@@ -14,7 +14,7 @@ import torch
 import torch.multiprocessing as mp
 from tqdm import tqdm
 
-from . import StyleTransfer, WebInterface
+from . import srgb_profile, StyleTransfer, WebInterface
 
 
 def load_image(path):
@@ -27,11 +27,12 @@ def load_image(path):
 
 def save_image(image, path):
     path = Path(path)
-    kwargs = {}
+    kwargs = {'icc_profile': srgb_profile}
     if path.suffix.lower() in {'.jpg', '.jpeg'}:
-        kwargs = {'quality': 95, 'subsampling': 0}
+        kwargs['quality'] = 95
+        kwargs['subsampling'] = 0
     elif path.suffix.lower() == '.webp':
-        kwargs = {'quality': 95}
+        kwargs['quality'] = 95
     tqdm.write(f'Writing image to {path}.')
     try:
         image.save(path, **kwargs)

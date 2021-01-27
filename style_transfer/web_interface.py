@@ -9,7 +9,7 @@ import torch
 import torch.multiprocessing as mp
 from torchvision.transforms import functional as TF
 
-from . import STIterate
+from . import srgb_profile, STIterate
 
 
 @dataclass
@@ -90,7 +90,8 @@ class WebInterface:
 
     def compress_image(self):
         buf = io.BytesIO()
-        TF.to_pil_image(self.image).save(buf, format='jpeg', quality=95, subsampling=0)
+        TF.to_pil_image(self.image).save(buf, format='jpeg', icc_profile=srgb_profile,
+                                         quality=95, subsampling=0)
         return buf.getvalue()
 
     async def handle_image(self, request):

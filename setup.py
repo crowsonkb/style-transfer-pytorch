@@ -14,7 +14,7 @@ setuptools.setup(
     entry_points={
         'console_scripts': ['style_transfer=style_transfer.cli:main'],
     },
-    package_data={'style_transfer': ['web_static/*']},
+    package_data={'style_transfer': ['*.icc', 'web_static/*']},
     install_requires=['aiohttp>=3.7.2',
                       'dataclasses>=0.8;python_version<"3.7"',
                       'Pillow>=8.0.0',

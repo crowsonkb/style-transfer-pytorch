@@ -20,14 +20,25 @@ from tqdm import tqdm
 from . import srgb_profile, StyleTransfer, WebInterface
 
 
-def load_image(path):
+def prof_to_prof(image, src_prof, dst_prof, **kwargs):
+    src_prof = io.BytesIO(src_prof)
+    dst_prof = io.BytesIO(dst_prof)
+    return ImageCms.profileToProfile(image, src_prof, dst_prof, **kwargs)
+
+
+def load_image(path, proof_prof=None):
+    src_prof = dst_prof = srgb_profile
     try:
         image = Image.open(path)
-        if 'icc_profile' not in image.info:
-            return image.convert('RGB')
-        src_prof = io.BytesIO(image.info['icc_profile'])
-        dst_prof = io.BytesIO(srgb_profile)
-        return ImageCms.profileToProfile(image, src_prof, dst_prof, outputMode='RGB')
+        if 'icc_profile' in image.info:
+            src_prof = image.info['icc_profile']
+        if proof_prof is None:
+            if src_prof == dst_prof:
+                return image.convert('RGB')
+            return prof_to_prof(image, src_prof, dst_prof, outputMode='RGB')
+        proof_prof = Path(proof_prof).read_bytes()
+        cmyk = prof_to_prof(image, src_prof, proof_prof, outputMode='CMYK')
+        return prof_to_prof(cmyk, proof_prof, dst_prof, outputMode='RGB')
     except OSError as err:
         print_error(err)
         sys.exit(1)
@@ -169,6 +180,8 @@ def main():
                    help='the fixed scale of the style at different content scales')
     p.add_argument('--pooling', type=str, default='max', choices=['max', 'average', 'l2'],
                    help='the model\'s pooling mode')
+    p.add_argument('--proof', type=str, default=None,
+                   help='the ICC color profile (CMYK) for soft proofing the content and styles')
     p.add_argument('--web', default=False, action='store_true', help='enable the web interface')
     p.add_argument('--host', type=str, default='0.0.0.0',
                    help='the host the web interface binds to')
@@ -179,8 +192,8 @@ def main():
 
     args = p.parse_args()
 
-    content_img = load_image(args.content)
-    style_imgs = [load_image(img) for img in args.styles]
+    content_img = load_image(args.content, args.proof)
+    style_imgs = [load_image(img, args.proof) for img in args.styles]
 
     image_type = 'pil'
     if Path(args.output).suffix.lower() in {'.tif', '.tiff'}:

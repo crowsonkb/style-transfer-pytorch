@@ -32,6 +32,8 @@ def load_image(path, proof_prof=None):
         image = Image.open(path)
         if 'icc_profile' in image.info:
             src_prof = image.info['icc_profile']
+        else:
+            image = image.convert('RGB')
         if proof_prof is None:
             if src_prof == dst_prof:
                 return image.convert('RGB')

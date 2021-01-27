@@ -34,7 +34,7 @@ def load_image(path):
         sys.exit(1)
 
 
-def save_pil(image, path):
+def save_pil(path, image):
     try:
         kwargs = {'icc_profile': srgb_profile}
         if path.suffix.lower() in {'.jpg', '.jpeg'}:
@@ -48,24 +48,23 @@ def save_pil(image, path):
         sys.exit(1)
 
 
-def save_tiff(image, path):
+def save_tiff(path, image):
+    tag = ('InterColorProfile', TIFF.DATATYPES.BYTE, len(srgb_profile), srgb_profile, False)
     try:
         with TiffWriter(path) as writer:
-            tag = ('InterColorProfile', TIFF.DATATYPES.BYTE,
-                   len(srgb_profile), srgb_profile, False)
-            writer.save(image, photometric='rgb', extratags=[tag])
+            writer.save(image, photometric='rgb', resolution=(72, 72), extratags=[tag])
     except OSError as err:
         print_error(err)
         sys.exit(1)
 
 
-def save_image(image, path):
+def save_image(path, image):
     path = Path(path)
     tqdm.write(f'Writing image to {path}.')
     if isinstance(image, Image.Image):
-        save_pil(image, path)
+        save_pil(path, image)
     elif isinstance(image, np.ndarray) and path.suffix.lower() in {'.tif', '.tiff'}:
-        save_tiff(image, path)
+        save_tiff(path, image)
     else:
         raise ValueError('Unsupported combination of image type and extension')
 
@@ -108,12 +107,12 @@ class Callback:
         if iterate.i == iterate.i_max:
             self.progress.close()
             if max(iterate.w, iterate.h) != self.args.end_scale:
-                save_image(self.st.get_image(self.image_type), self.args.output)
+                save_image(self.args.output, self.st.get_image(self.image_type))
             else:
                 if self.web_interface is not None:
                     self.web_interface.put_done()
         elif iterate.i % self.args.save_every == 0:
-            save_image(self.st.get_image(self.image_type), self.args.output)
+            save_image(self.args.output, self.st.get_image(self.image_type))
 
     def close(self):
         if self.progress is not None:
@@ -230,7 +229,7 @@ def main():
 
     output_image = st.get_image(image_type)
     if output_image is not None:
-        save_image(output_image, args.output)
+        save_image(args.output, output_image)
     with open('trace.json', 'w') as fp:
         json.dump(callback.get_trace(), fp, indent=4)
 

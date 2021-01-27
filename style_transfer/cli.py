@@ -25,10 +25,9 @@ def load_image(path):
         image = Image.open(path)
         if 'icc_profile' not in image.info:
             return image.convert('RGB')
-        src_prof = ImageCms.getOpenProfile(io.BytesIO(image.info['icc_profile']))
-        dst_prof = ImageCms.getOpenProfile(io.BytesIO(srgb_profile))
-        tf = ImageCms.buildTransformFromOpenProfiles(src_prof, dst_prof, image.mode, 'RGB')
-        return tf.apply(image)
+        src_prof = io.BytesIO(image.info['icc_profile'])
+        dst_prof = io.BytesIO(srgb_profile)
+        return ImageCms.profileToProfile(image, src_prof, dst_prof, outputMode='RGB')
     except OSError as err:
         print_error(err)
         sys.exit(1)

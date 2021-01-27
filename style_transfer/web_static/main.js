@@ -98,7 +98,7 @@ function wsConnect() {
             }
             if (msg.gpu_ram) {
                 $("#gpu-ram").text((msg.gpu_ram / 1024 / 1024).toFixed());
-                $("#gpu-ram-wrap").css("display", "");
+                $("#gpu-wrap").css("display", "");
             }
             $("#status").css("display", "none");
             reloadImage();

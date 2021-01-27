@@ -1,6 +1,7 @@
 import asyncio
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass, is_dataclass
 import io
+import json
 from pathlib import Path
 
 from aiohttp import web
@@ -27,11 +28,21 @@ class WIStop:
     pass
 
 
+class DCJSONEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if is_dataclass(obj):
+            dct = dict(obj.__dict__)
+            dct['type'] = type(obj).__name__
+            return dct
+        return super().default(obj)
+
+
 class WebInterface:
     def __init__(self, host, port):
         self.host = host
         self.port = port
         self.q = mp.Queue()
+        self.encoder = DCJSONEncoder()
         self.image = None
         self.loop = None
         self.runner = None
@@ -106,11 +117,9 @@ class WebInterface:
         return ws
 
     async def send_websocket_message(self, msg):
-        send_dict = asdict(msg)
-        send_dict['type'] = type(msg).__name__
         for ws in self.wss:
             try:
-                await ws.send_json(send_dict)
+                await ws.send_json(msg, dumps=self.encoder.encode)
             except ConnectionError:
                 try:
                     self.wss.remove(ws)

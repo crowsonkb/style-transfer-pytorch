@@ -153,20 +153,23 @@ def main():
     content_img = load_image(args.content)
     style_imgs = [load_image(img) for img in args.styles]
 
-    web_interface = WebInterface(args.host, args.port) if args.web else None
-    if web_interface is not None:
-        atexit.register(web_interface.close)
-
     if args.device is None:
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     else:
         device = torch.device(args.device)
     print('Using device:', device)
 
+    if device.type == 'cpu':
+        print('CPU threads:', torch.get_num_threads())
     if device.type == 'cuda':
         props = torch.cuda.get_device_properties(device)
         print('GPU type:', props.name)
         print('GPU RAM:', round(props.total_memory / 1024 / 1024), 'MB')
+
+    web_interface = None
+    if args.web:
+        web_interface = WebInterface(args.host, args.port)
+        atexit.register(web_interface.close)
 
     torch.tensor(0).to(device)
     torch.manual_seed(args.random_seed)

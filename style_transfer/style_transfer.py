@@ -6,6 +6,7 @@ from functools import partial
 import time
 import warnings
 
+import numpy as np
 from PIL import Image
 import torch
 from torch import optim, nn
@@ -266,9 +267,16 @@ class StyleTransfer:
     def get_image_tensor(self):
         return self.average.get().detach()[0].clamp(0, 1)
 
-    def get_image(self):
+    def get_image(self, image_type='pil'):
         if self.average is not None:
-            return TF.to_pil_image(self.get_image_tensor())
+            image = self.get_image_tensor()
+            if image_type.lower() == 'pil':
+                return TF.to_pil_image(image)
+            elif image_type.lower() == 'np_uint16':
+                arr = image.cpu().movedim(0, 2).numpy()
+                return np.uint16(np.round(arr * 65535))
+            else:
+                raise ValueError("image_type must be 'pil' or 'np_uint16'")
 
     def stylize(self, content_image, style_images, *,
                 style_weights=None,

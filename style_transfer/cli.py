@@ -10,7 +10,9 @@ import platform
 import sys
 import webbrowser
 
+import numpy as np
 from PIL import Image, ImageCms
+from tifffile import TIFF, TiffWriter
 import torch
 import torch.multiprocessing as mp
 from tqdm import tqdm
@@ -32,20 +34,40 @@ def load_image(path):
         sys.exit(1)
 
 
-def save_image(image, path):
-    path = Path(path)
-    kwargs = {'icc_profile': srgb_profile}
-    if path.suffix.lower() in {'.jpg', '.jpeg'}:
-        kwargs['quality'] = 95
-        kwargs['subsampling'] = 0
-    elif path.suffix.lower() == '.webp':
-        kwargs['quality'] = 95
-    tqdm.write(f'Writing image to {path}.')
+def save_pil(image, path):
     try:
+        kwargs = {'icc_profile': srgb_profile}
+        if path.suffix.lower() in {'.jpg', '.jpeg'}:
+            kwargs['quality'] = 95
+            kwargs['subsampling'] = 0
+        elif path.suffix.lower() == '.webp':
+            kwargs['quality'] = 95
         image.save(path, **kwargs)
     except (OSError, ValueError) as err:
         print_error(err)
         sys.exit(1)
+
+
+def save_tiff(image, path):
+    try:
+        with TiffWriter(path) as writer:
+            tag = ('InterColorProfile', TIFF.DATATYPES.BYTE,
+                   len(srgb_profile), srgb_profile, False)
+            writer.save(image, photometric='rgb', extratags=[tag])
+    except OSError as err:
+        print_error(err)
+        sys.exit(1)
+
+
+def save_image(image, path):
+    path = Path(path)
+    tqdm.write(f'Writing image to {path}.')
+    if isinstance(image, Image.Image):
+        save_pil(image, path)
+    elif isinstance(image, np.ndarray) and path.suffix.lower() in {'.tif', '.tiff'}:
+        save_tiff(image, path)
+    else:
+        raise ValueError('Unsupported combination of image type and extension')
 
 
 def setup_exceptions():
@@ -66,9 +88,10 @@ def print_error(err):
 
 
 class Callback:
-    def __init__(self, st, args, web_interface=None):
+    def __init__(self, st, args, image_type='pil', web_interface=None):
         self.st = st
         self.args = args
+        self.image_type = image_type
         self.web_interface = web_interface
         self.iterates = []
         self.progress = None
@@ -85,12 +108,12 @@ class Callback:
         if iterate.i == iterate.i_max:
             self.progress.close()
             if max(iterate.w, iterate.h) != self.args.end_scale:
-                save_image(self.st.get_image(), self.args.output)
+                save_image(self.st.get_image(self.image_type), self.args.output)
             else:
                 if self.web_interface is not None:
                     self.web_interface.put_done()
         elif iterate.i % self.args.save_every == 0:
-            save_image(self.st.get_image(), self.args.output)
+            save_image(self.st.get_image(self.image_type), self.args.output)
 
     def close(self):
         if self.progress is not None:
@@ -161,6 +184,10 @@ def main():
     content_img = load_image(args.content)
     style_imgs = [load_image(img) for img in args.styles]
 
+    image_type = 'pil'
+    if Path(args.output).suffix.lower() in {'.tif', '.tiff'}:
+        image_type = 'np_uint16'
+
     if args.device is None:
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     else:
@@ -184,7 +211,7 @@ def main():
 
     print('Loading model...')
     st = StyleTransfer(device=device, pooling=args.pooling)
-    callback = Callback(st, args, web_interface=web_interface)
+    callback = Callback(st, args, image_type=image_type, web_interface=web_interface)
     atexit.register(callback.close)
 
     url = f'http://{args.host}:{args.port}/'
@@ -201,7 +228,7 @@ def main():
     except KeyboardInterrupt:
         pass
 
-    output_image = st.get_image()
+    output_image = st.get_image(image_type)
     if output_image is not None:
         save_image(output_image, args.output)
     with open('trace.json', 'w') as fp:

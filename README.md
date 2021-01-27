@@ -38,6 +38,8 @@ If you have a supported GPU and `style_transfer` is using the CPU, try using the
 style_transfer CONTENT_IMAGE STYLE_IMAGE [STYLE_IMAGE ...] [-o OUTPUT_IMAGE]
 ```
 
+Input images will be converted to sRGB when loaded, and output images have the sRGB colorspace. If the output image is a TIFF file, it will be written with 16 bits per channel.
+
 `style_transfer` has many optional arguments: run it with the `--help` argument to see a full list. Particularly notable ones include:
 
 - `--web` enables a simple web interface while the program is running that allows you to watch its progress. It runs on port 8080 by default, but you can change it with `--port`. If you just want to view the current image and refresh it manually, you can go to `/image`.

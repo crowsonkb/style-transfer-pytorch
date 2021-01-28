@@ -152,7 +152,8 @@ def main():
                    help='the output image')
     p.add_argument('--style-weights', '-sw', type=float, nargs='+', default=None,
                    metavar='STYLE_WEIGHT', help='the relative weights for each style image')
-    p.add_argument('--device', type=str, help='the device name to use (omit for auto)')
+    p.add_argument('--devices', type=str, default=[], nargs='+',
+                   help='the device names to use (omit for auto)')
     p.add_argument('--random-seed', '-r', type=int, default=0,
                    help='the random seed')
     p.add_argument('--content-weight', '-cw', **arg_info('content_weight'),
@@ -201,29 +202,36 @@ def main():
     if Path(args.output).suffix.lower() in {'.tif', '.tiff'}:
         image_type = 'np_uint16'
 
-    if args.device is None:
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    else:
-        device = torch.device(args.device)
-    print('Using device:', device)
+    devices = [torch.device(device) for device in args.devices]
+    if not devices:
+        devices = [torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')]
+    if len(set(device.type for device in devices)) != 1:
+        print('Devices must all be the same type.')
+        sys.exit(1)
+    if not 1 <= len(devices) <= 2:
+        print('Only 1 or 2 devices are supported.')
+        sys.exit(1)
+    print('Using devices:', ' '.join(str(device) for device in devices))
 
-    if device.type == 'cpu':
+    if devices[0].type == 'cpu':
         print('CPU threads:', torch.get_num_threads())
-    if device.type == 'cuda':
-        props = torch.cuda.get_device_properties(device)
-        print(f'GPU type: {props.name} (compute {props.major}.{props.minor})')
-        print('GPU RAM:', round(props.total_memory / 1024 / 1024), 'MB')
+    if devices[0].type == 'cuda':
+        for i, device in enumerate(devices):
+            props = torch.cuda.get_device_properties(device)
+            print(f'GPU {i} type: {props.name} (compute {props.major}.{props.minor})')
+            print(f'GPU {i} RAM:', round(props.total_memory / 1024 / 1024), 'MB')
 
     web_interface = None
     if args.web:
         web_interface = WebInterface(args.host, args.port)
         atexit.register(web_interface.close)
 
-    torch.tensor(0).to(device)
+    for device in devices:
+        torch.tensor(0).to(device)
     torch.manual_seed(args.random_seed)
 
     print('Loading model...')
-    st = StyleTransfer(device=device, pooling=args.pooling)
+    st = StyleTransfer(devices=devices, pooling=args.pooling)
     callback = Callback(st, args, image_type=image_type, web_interface=web_interface)
     atexit.register(callback.close)
 

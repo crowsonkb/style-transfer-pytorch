@@ -196,9 +196,6 @@ class EMA(nn.Module):
         self.value *= self.decay
         self.value += (1 - self.decay) * input
 
-    def mutate(self, new_value):
-        self.value = new_value * (1 - self.accum)
-
 
 def size_to_fit(size, max_dim, scale_up=False):
     w, h = size
@@ -338,7 +335,6 @@ class StyleTransfer:
         else:
             raise ValueError("init must be one of 'content', 'gray', 'uniform', 'style_mean'")
         self.image = self.image.to(self.devices[0])
-        self.average = EMA(self.image, avg_decay)
 
         opt = None
 
@@ -353,9 +349,7 @@ class StyleTransfer:
             content = content.to(self.devices[0])
 
             self.image = interpolate(self.image.detach(), (ch, cw), mode='bicubic').clamp(0, 1)
-            # Warm-start the average iterate with the old scale's average iterate.
-            new_avg = interpolate(self.average.get(), (ch, cw), mode='bicubic').clamp(0, 1)
-            self.average.mutate(new_avg)
+            self.average = EMA(self.image, avg_decay)
             self.image.requires_grad_()
 
             print(f'Processing content image ({cw}x{ch})...')

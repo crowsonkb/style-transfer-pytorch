@@ -140,6 +140,10 @@ class WeightedLoss(nn.ModuleList):
         self.weights = weights
         self.verbose = verbose
 
+    def extra_repr(self):
+        s = ', '.join([f'({i}): {w:g}' for i, w in enumerate(self.weights)])
+        return '(weights): ' + s
+
     def _print_losses(self, losses):
         for i, loss in enumerate(losses):
             print(f'{i}: {loss.item():g}')

@@ -80,28 +80,37 @@ class VGGFeatures(nn.Module):
         return feats
 
 
-def scaled_mse_loss(input, target, eps=1e-8):
+class ScaledMSELoss(nn.Module):
     """Computes MSE scaled such that its gradient L1 norm is approximately 1.
     This differs from Gatys at al. (2015) and Johnson et al."""
-    diff = input - target
-    return diff.pow(2).sum() / diff.abs().sum().add(eps)
+
+    def __init__(self, eps=1e-8):
+        super().__init__()
+        self.register_buffer('eps', torch.tensor(eps))
+
+    def extra_repr(self):
+        return f'eps={self.eps:g}'
+
+    def forward(self, input, target):
+        diff = input - target
+        return diff.pow(2).sum() / diff.abs().sum().add(self.eps)
 
 
 class ContentLoss(nn.Module):
     def __init__(self, target, eps=1e-8):
         super().__init__()
         self.register_buffer('target', target)
-        self.register_buffer('eps', torch.tensor(eps))
+        self.loss = ScaledMSELoss(eps=eps)
 
     def forward(self, input):
-        return scaled_mse_loss(input, self.target, eps=self.eps)
+        return self.loss(input, self.target)
 
 
 class StyleLoss(nn.Module):
     def __init__(self, target, eps=1e-8):
         super().__init__()
         self.register_buffer('target', target)
-        self.register_buffer('eps', torch.tensor(eps))
+        self.loss = ScaledMSELoss(eps=eps)
 
     @staticmethod
     def get_target(target):
@@ -110,7 +119,7 @@ class StyleLoss(nn.Module):
         return mat @ mat.transpose(-2, -1) / mat.shape[-1]
 
     def forward(self, input):
-        return scaled_mse_loss(self.get_target(input), self.target, eps=self.eps)
+        return self.loss(self.get_target(input), self.target)
 
 
 class TVLoss(nn.Module):

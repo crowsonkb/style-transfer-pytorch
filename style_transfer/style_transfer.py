@@ -132,29 +132,16 @@ class TVLoss(nn.Module):
         return (x_diff**2 + y_diff**2).mean()
 
 
-class WeightedLoss(nn.ModuleList):
-    def __init__(self, losses, weights, verbose=False):
-        if len(losses) != len(weights):
-            raise ValueError('losses must be the same length as weights')
+class SumLoss(nn.ModuleList):
+    def __init__(self, losses, verbose=False):
         super().__init__(losses)
-        self.weights = weights
         self.verbose = verbose
 
-    def extra_repr(self):
-        s = ', '.join([f'({i}): {w:g}' for i, w in enumerate(self.weights)])
-        return '(weights): ' + s
-
-    def _print_losses(self, losses):
-        for i, loss in enumerate(losses):
-            print(f'{i}: {loss.item():g}')
-
     def forward(self, *args, **kwargs):
-        losses = []
-        for loss, weight in zip(self, self.weights):
-            loss_value = loss(*args, **kwargs) * weight if weight else torch.tensor(0)
-            losses.append(loss_value)
+        losses = [loss(*args, **kwargs) for loss in self]
         if self.verbose:
-            self._print_losses(losses)
+            for i, loss in enumerate(losses):
+                print(f'({i}): {loss.item():g}')
         return sum(losses)
 
 
@@ -165,7 +152,7 @@ class Scale(nn.Module):
         self.register_buffer('scale', torch.tensor(scale))
 
     def extra_repr(self):
-        return f'scale={self.scale!r}'
+        return f'(scale): {self.scale.item():g}'
 
     def forward(self, *args, **kwargs):
         return self.module(*args, **kwargs) * self.scale
@@ -178,7 +165,7 @@ class LayerApply(nn.Module):
         self.layer = layer
 
     def extra_repr(self):
-        return f'layer={self.layer!r}'
+        return f'(layer): {self.layer!r}'
 
     def forward(self, input):
         return self.module(input[self.layer])
@@ -317,7 +304,7 @@ class StyleTransfer:
         if len(style_images) != len(style_weights):
             raise ValueError('style_images and style_weights must have the same length')
 
-        tv_loss = LayerApply(TVLoss(), 'input')
+        tv_loss = Scale(LayerApply(TVLoss(), 'input'), tv_weight)
 
         scales = gen_scales(min_scale, end_scale)
 
@@ -356,12 +343,11 @@ class StyleTransfer:
             print(f'Processing content image ({cw}x{ch})...')
             content_feats = self.model(content, layers=self.content_layers)
             content_losses = []
-            for layer in self.content_layers:
+            for layer, weight in zip(self.content_layers, content_weights):
                 target = content_feats[layer]
-                content_losses.append(LayerApply(ContentLoss(target), layer))
+                content_losses.append(Scale(LayerApply(ContentLoss(target), layer), weight))
 
-            style_targets = {}
-            style_losses = []
+            style_targets, style_losses = {}, []
             for i, image in enumerate(style_images):
                 if style_size is None:
                     sw, sh = size_to_fit(image.size, round(scale * style_scale_fac))
@@ -378,12 +364,11 @@ class StyleTransfer:
                         style_targets[layer] = target
                     else:
                         style_targets[layer] += target
-            for layer in self.style_layers:
+            for layer, weight in zip(self.style_layers, self.style_weights):
                 target = style_targets[layer]
-                style_losses.append(LayerApply(StyleLoss(target), layer))
+                style_losses.append(Scale(LayerApply(StyleLoss(target), layer), weight))
 
-            crit = WeightedLoss([*content_losses, *style_losses, tv_loss],
-                                [*content_weights, *self.style_weights, tv_weight])
+            crit = SumLoss([*content_losses, *style_losses, tv_loss])
 
             opt2 = optim.Adam([self.image], lr=step_size)
             # Warm-start the Adam optimizer if this is not the first scale.

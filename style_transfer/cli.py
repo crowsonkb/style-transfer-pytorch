@@ -81,6 +81,12 @@ def save_image(path, image):
         raise ValueError('Unsupported combination of image type and extension')
 
 
+def get_safe_scale(w, h, dim):
+    """Given a w x h content image and that a dim x dim square does not
+    exceed GPU memory, compute a safe end_scale for that content image."""
+    return int(pow(w / h if w > h else h / w, 1/2) * dim)
+
+
 def setup_exceptions():
     try:
         from IPython.core.ultratb import FormattedTB
@@ -162,7 +168,7 @@ def main():
                    help='the smoothing weight')
     p.add_argument('--min-scale', '-ms', **arg_info('min_scale'),
                    help='the minimum scale (max image dim), in pixels')
-    p.add_argument('--end-scale', '-s', **arg_info('end_scale'),
+    p.add_argument('--end-scale', '-s', type=str, default='512',
                    help='the final scale (max image dim), in pixels')
     p.add_argument('--iterations', '-i', **arg_info('iterations'),
                    help='the number of iterations per scale')
@@ -220,6 +226,11 @@ def main():
             props = torch.cuda.get_device_properties(device)
             print(f'GPU {i} type: {props.name} (compute {props.major}.{props.minor})')
             print(f'GPU {i} RAM:', round(props.total_memory / 1024 / 1024), 'MB')
+
+    end_scale = int(args.end_scale.rstrip('+'))
+    if args.end_scale.endswith('+'):
+        end_scale = get_safe_scale(*content_img.size, end_scale)
+    args.end_scale = end_scale
 
     web_interface = None
     if args.web:

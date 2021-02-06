@@ -80,6 +80,7 @@ class VGGFeatures(nn.Module):
         if min(h, w) < min_size:
             raise ValueError(f'Input is {h}x{w} but must be at least {min_size}x{min_size}')
         feats = {'input': input}
+        input = self.normalize(input)
         for i in range(max(layers) + 1):
             input = self.model[i](input.to(self.devices[i]))
             if i in layers:
@@ -292,8 +293,8 @@ class StyleTransfer:
 
     def stylize(self, content_image, style_images, *,
                 style_weights=None,
-                content_weight: float = 0.01,
-                tv_weight: float = 0.3,
+                content_weight: float = 0.015,
+                tv_weight: float = 2.,
                 min_scale: int = 128,
                 end_scale: int = 512,
                 iterations: int = 500,

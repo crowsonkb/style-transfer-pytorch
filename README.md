@@ -50,9 +50,9 @@ Input images will be converted to sRGB when loaded, and output images have the s
 
 - `-sw` (`--style-weights`) specifies factors for the weighted average of multiple styles if there is more than one style image specified. These factors are automatically normalized to sum to 1. If omitted, the styles will be blended equally.
 
-- `-cw` (`--content-weight`) sets the degree to which features from the content image are included in the output image. The default is 0.01.
+- `-cw` (`--content-weight`) sets the degree to which features from the content image are included in the output image. The default is 0.015.
 
-- `-tw` (`--tv-weight`) sets the strength of the smoothness prior. The default is 0.3.
+- `-tw` (`--tv-weight`) sets the strength of the smoothness prior. The default is 2.
 
 ## References
 

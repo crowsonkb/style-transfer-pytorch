@@ -1,8 +1,26 @@
 # style-transfer-pytorch
 
-An implementation of neural style transfer ([A Neural Algorithm of Artistic Style](https://arxiv.org/abs/1508.06576)) in PyTorch, supporting CPUs and Nvidia GPUs. The algorithm has been improved from that in the literature by applying a carefully selected gradient normalization method, an alternate weighting of hierarchical representations of the styles, an improved and automatic multi-scale (coarse-to-fine) stylization scheme, and the use of multiple iterate noise reduction methods. It can produce high-quality high resolution stylizations, even up to print resolution if the GPUs have sufficient memory. If two GPUs are available, they can both be used to increase the maximum resolution. (Using two GPUs is not faster than using one.)
+An implementation of neural style transfer ([A Neural Algorithm of Artistic Style](https://arxiv.org/abs/1508.06576)) in PyTorch, supporting CPUs and Nvidia GPUs. It does automatic multi-scale (coarse-to-fine) stylization to produce high-quality high resolution stylizations, even up to print resolution if the GPUs have sufficient memory. If two GPUs are available, they can both be used to increase the maximum resolution. (Using two GPUs is not faster than using one.)
 
-Improvements and other differences from the literature have been documented in the code's comments.
+The algorithm has been modified from that in the literature by:
+
+- Using the PyTorch pre-trained VGG-19 weights instead of the original VGG-19 weights
+
+- Changing the padding mode of the first layer of VGG-19 to 'replicate', to reduce edge artifacts
+
+- When using average or L2 pooling, scaling the result by an empirically derived factor to ensure that the magnitude of the result stays the same on average (Gatys et al. (2015) did not do this)
+
+- Using an approximation to the MSE loss such that its gradient L1 norm is approximately 1 for content and style losses (in order to approximate the effects of gradient normalization, which produces better visual quality)
+
+- Normalizing the Gram matrices by the number of elements in each feature map channel rather than by the total number of elements (Johnson et al.) or not normalizing (Gatys et al. (2015))
+
+- Taking an exponential moving average over the iterates to reduce iterate noise (each new scale is initialized with the previous scale's averaged iterate)
+
+- Warm-starting the Adam optimizer with scaled-up versions of its first and second moment buffers at the beginning of each new scale, to prevent noise from being added to the iterates at the beginning of each scale
+
+- Using non-equal weights for the style layers to improve visual quality
+
+- Stylizing the image at progressively larger scales, each greater by a factor of sqrt(2) (this is improved from the multi-scale scheme given in Gatys et al. (2016))
 
 ## Example outputs (click for the full-sized version)
 

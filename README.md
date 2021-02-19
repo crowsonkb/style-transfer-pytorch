@@ -50,6 +50,10 @@ This will install the `style_transfer` CLI tool. `style_transfer` uses a pre-tra
 
 If you have a supported GPU and `style_transfer` is using the CPU, try using the argument `--device cuda:0` to force it to try to use the first CUDA GPU. This should print an informative error message.
 
+## Colab
+
+You can try `style_transfer` without installing it locally by using the [official Colab](https://colab.research.google.com/drive/1Tmuwmncao5E3D-5tTIVQjRy2YQ8JdpoB?usp=sharing).
+
 ## Basic usage
 
 ```sh

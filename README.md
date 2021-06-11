@@ -40,11 +40,7 @@ The algorithm has been modified from that in the literature by:
 
 [PyTorch](https://pytorch.org) is required: follow [their installation instructions](https://pytorch.org/get-started/locally/) before proceeding. If you do not have an Nvidia GPU, select None for CUDA. On Linux, you can find out your CUDA version using the `nvidia-smi` command. PyTorch packages for CUDA versions lower than yours will work, but select the highest you can.
 
-To install `style-transfer-pytorch`, first clone the repository, then run the command:
-
-```sh
-pip install -e PATH_TO_REPO
-```
+To install `style-transfer-pytorch`, first clone the repository, then run the setup.bat file.
 
 This will install the `style_transfer` CLI tool. `style_transfer` uses a pre-trained VGG-19 model (Simonyan et al.), which is 548MB in size, and will download it when first run.
 
@@ -56,6 +52,9 @@ You can try `style_transfer` without installing it locally by using the [officia
 
 ## Basic usage
 
+Run the Batch.bat and follow the prompts. If you want to use the original cli tool, it's still an option and this .bat is not necessary.
+
+CLI usage:
 ```sh
 style_transfer CONTENT_IMAGE STYLE_IMAGE [STYLE_IMAGE ...] [-o OUTPUT_IMAGE]
 ```

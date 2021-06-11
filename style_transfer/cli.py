@@ -192,7 +192,7 @@ def main():
     p.add_argument('--proof', type=str, default=None,
                    help='the ICC color profile (CMYK) for soft proofing the content and styles')
     p.add_argument('--web', default=False, action='store_true', help='enable the web interface')
-    p.add_argument('--host', type=str, default='0.0.0.0',
+    p.add_argument('--host', type=str, default='localhost',
                    help='the host the web interface binds to')
     p.add_argument('--port', type=int, default=8080,
                    help='the port the web interface binds to')

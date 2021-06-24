@@ -20,7 +20,7 @@ style_transfer -h
 echo "Additional Settings, Use Default if you're not sure what to do"
 echo.
 set /p Additionals="Additionals:" || set Additionals=--web --browser
-  ::--web --host --browser localhost  -ms 128 -s 1024 -cw 0.04 -ss 0.05   -i 500 -ii 1000 --save-every 75 (my favorite)
+  ::--web --host localhost --browser   -ms 128 -s 1024 -cw 0.04 -ss 0.05   -i 500 -ii 1000 --save-every 75 (my favorite)
 echo.
 set InputShort=%Input:~-15%
 set ListShort=%LIST:~-15%

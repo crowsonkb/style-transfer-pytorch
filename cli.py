@@ -17,7 +17,7 @@ import torch
 import torch.multiprocessing as mp
 from tqdm import tqdm
 
-from . import srgb_profile, StyleTransfer, WebInterface
+from style_transfer import srgb_profile, StyleTransfer, WebInterface
 
 
 def prof_to_prof(image, src_prof, dst_prof, **kwargs):
@@ -130,7 +130,7 @@ class Callback:
                 if self.web_interface is not None:
                     self.web_interface.put_done()
         elif iterate.i % self.args.save_every == 0:
-            save_image(self.args.output, self.st.get_image(self.image_type))
+            save_image(self.args.output, self.st.get_image(self.image_type)) # save intermediate results
 
     def close(self):
         if self.progress is not None:
@@ -139,6 +139,8 @@ class Callback:
     def get_trace(self):
         return {'args': self.args.__dict__, 'iterates': self.iterates}
 
+# import os
+# os.environ['CUDA_VISIBLE_DEVICES'] = '3'
 
 def main():
     setup_exceptions()
@@ -152,62 +154,61 @@ def main():
         default_types = StyleTransfer.stylize.__annotations__
         return {'default': defaults[arg], 'type': default_types[arg]}
 
-    p.add_argument('content', type=str, help='the content image')
-    p.add_argument('styles', type=str, nargs='+', metavar='style', help='the style images')
-    p.add_argument('--output', '-o', type=str, default='out.png',
-                   help='the output image')
-    p.add_argument('--style-weights', '-sw', type=float, nargs='+', default=None,
-                   metavar='STYLE_WEIGHT', help='the relative weights for each style image')
-    p.add_argument('--devices', type=str, default=[], nargs='+',
-                   help='the device names to use (omit for auto)')
-    p.add_argument('--random-seed', '-r', type=int, default=0,
-                   help='the random seed')
-    p.add_argument('--content-weight', '-cw', **arg_info('content_weight'),
-                   help='the content weight')
-    p.add_argument('--tv-weight', '-tw', **arg_info('tv_weight'),
-                   help='the smoothing weight')
-    p.add_argument('--min-scale', '-ms', **arg_info('min_scale'),
-                   help='the minimum scale (max image dim), in pixels')
-    p.add_argument('--end-scale', '-s', type=str, default='512',
-                   help='the final scale (max image dim), in pixels')
-    p.add_argument('--iterations', '-i', **arg_info('iterations'),
-                   help='the number of iterations per scale')
-    p.add_argument('--initial-iterations', '-ii', **arg_info('initial_iterations'),
-                   help='the number of iterations on the first scale')
-    p.add_argument('--save-every', type=int, default=50,
-                   help='save the image every SAVE_EVERY iterations')
-    p.add_argument('--step-size', '-ss', **arg_info('step_size'),
-                   help='the step size (learning rate)')
-    p.add_argument('--avg-decay', '-ad', **arg_info('avg_decay'),
-                   help='the EMA decay rate for iterate averaging')
-    p.add_argument('--init', **arg_info('init'),
-                   choices=['content', 'gray', 'uniform', 'style_mean'],
-                   help='the initial image')
-    p.add_argument('--style-scale-fac', **arg_info('style_scale_fac'),
-                   help='the relative scale of the style to the content')
-    p.add_argument('--style-size', **arg_info('style_size'),
-                   help='the fixed scale of the style at different content scales')
-    p.add_argument('--pooling', type=str, default='max', choices=['max', 'average', 'l2'],
-                   help='the model\'s pooling mode')
-    p.add_argument('--proof', type=str, default=None,
-                   help='the ICC color profile (CMYK) for soft proofing the content and styles')
-    p.add_argument('--web', default=False, action='store_true', help='enable the web interface')
-    p.add_argument('--host', type=str, default='0.0.0.0',
-                   help='the host the web interface binds to')
-    p.add_argument('--port', type=int, default=8080,
-                   help='the port the web interface binds to')
-    p.add_argument('--browser', type=str, default='', nargs='?',
-                   help='open a web browser (specify the browser if not system default)')
+    content_dir = './images/content/'
+    style_dir = './images/styles/'
+    my_content_image = 'ust1.jpg'
+    my_style_images = ['neon1.jpg']
+    output_name = './results/neon1/neon1_ust1_cw0.04_gw20_sw1.5_mask_laplacian.png'
 
+    # files
+    p.add_argument('--content', type=str, default=(content_dir+my_content_image), help='the content image')
+    p.add_argument('--sky_mask', type=str, default=(content_dir+my_content_image.split('.')[0]+'_skymask.jpg'))
+    p.add_argument('--styles', type=str, default=[(style_dir+i) for i in my_style_images], nargs='+', metavar='style', help='the style images')
+    p.add_argument('--output', '-o', type=str, default=output_name, help='the output image')
+
+    # training param
+    p.add_argument('--style-weights', '-sw', type=float, nargs='+', default=None,metavar='STYLE_WEIGHT', help='the relative weights for each style image')
+    p.add_argument('--content-weight', '-cw', **arg_info('content_weight'), help='the content weight')
+    p.add_argument('--grad-weight', '-gw', **arg_info('grad_weight'), help='the grad weight')
+    p.add_argument('--sky-weight', '-sky', **arg_info('sky_weight'), help='the sky weight')
+    
+    p.add_argument('--tv-weight', '-tw', **arg_info('tv_weight'), help='the smoothing weight')
+    p.add_argument('--step-size', '-ss', **arg_info('step_size'), help='the step size (learning rate)')
+    p.add_argument('--avg-decay', '-ad', **arg_info('avg_decay'), help='the EMA decay rate for iterate averaging')
+    p.add_argument('--pooling', type=str, default='average', choices=['max', 'average', 'l2'], help='the model\'s pooling mode')
+    p.add_argument('--devices', type=str, default=['cuda:2'], nargs='+',help='the device names to use (omit for auto)')
+    
+    p.add_argument('--min-scale', '-ms', **arg_info('min_scale'), help='the minimum scale (max image dim), in pixels')
+    p.add_argument('--end-scale', '-s', type=str, default='512', help='the final scale (max image dim), in pixels')
+    
+    
+    p.add_argument('--random-seed', '-r', type=int, default=0, help='the random seed')
+    p.add_argument('--iterations', '-i', **arg_info('iterations'), help='the number of iterations per scale')
+    p.add_argument('--initial-iterations', '-ii', **arg_info('initial_iterations'), help='the number of iterations on the first scale')
+    p.add_argument('--save-every', type=int, default=50, help='save the image every SAVE_EVERY iterations')
+    
+    p.add_argument('--init', **arg_info('init'), choices=['content', 'gray', 'uniform', 'style_mean'], help='the initial image')
+    p.add_argument('--style-scale-fac', **arg_info('style_scale_fac'), help='the relative scale of the style to the content')
+    p.add_argument('--style-size', **arg_info('style_size'), help='the fixed scale of the style at different content scales')
+    
+    
+    p.add_argument('--proof', type=str, default=None, help='the ICC color profile (CMYK) for soft proofing the content and styles')
+    p.add_argument('--web', default=False, action='store_true', help='enable the web interface')
+    p.add_argument('--host', type=str, default='0.0.0.0', help='the host the web interface binds to')
+    p.add_argument('--port', type=int, default=8080, help='the port the web interface binds to')
+    p.add_argument('--browser', type=str, default='', nargs='?', help='open a web browser (specify the browser if not system default)')
+    
     args = p.parse_args()
 
+    # load images
     content_img = load_image(args.content, args.proof)
+    sky_mask = load_image(args.sky_mask, args.proof)
     style_imgs = [load_image(img, args.proof) for img in args.styles]
-
     image_type = 'pil'
     if Path(args.output).suffix.lower() in {'.tif', '.tiff'}:
         image_type = 'np_uint16'
 
+    # find device
     devices = [torch.device(device) for device in args.devices]
     if not devices:
         devices = [torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')]
@@ -219,6 +220,7 @@ def main():
         sys.exit(1)
     print('Using devices:', ' '.join(str(device) for device in devices))
 
+    # print device information
     if devices[0].type == 'cpu':
         print('CPU threads:', torch.get_num_threads())
     if devices[0].type == 'cuda':
@@ -227,6 +229,7 @@ def main():
             print(f'GPU {i} type: {props.name} (compute {props.major}.{props.minor})')
             print(f'GPU {i} RAM:', round(props.total_memory / 1024 / 1024), 'MB')
 
+    # verify end scale
     end_scale = int(args.end_scale.rstrip('+'))
     if args.end_scale.endswith('+'):
         end_scale = get_safe_scale(*content_img.size, end_scale)
@@ -242,10 +245,13 @@ def main():
     torch.manual_seed(args.random_seed)
 
     print('Loading model...')
+
+    # load the model
     st = StyleTransfer(devices=devices, pooling=args.pooling)
     callback = Callback(st, args, image_type=image_type, web_interface=web_interface)
     atexit.register(callback.close)
 
+    # setup online monitor
     url = f'http://{args.host}:{args.port}/'
     if args.web:
         if args.browser:
@@ -253,13 +259,15 @@ def main():
         elif args.browser is None:
             webbrowser.open(url)
 
-    defaults = StyleTransfer.stylize.__kwdefaults__
-    st_kwargs = {k: v for k, v in args.__dict__.items() if k in defaults}
+    # do style transfer
+    defaults = StyleTransfer.stylize.__kwdefaults__ # get the default keyword dictionary
+    st_kwargs = {k: v for k, v in args.__dict__.items() if k in defaults} # find modified args and put them into an array
     try:
-        st.stylize(content_img, style_imgs, **st_kwargs, callback=callback)
+        st.stylize(content_img, sky_mask, style_imgs, **st_kwargs, callback=callback) # stylize
     except KeyboardInterrupt:
         pass
 
+    # get the result image
     output_image = st.get_image(image_type)
     if output_image is not None:
         save_image(args.output, output_image)

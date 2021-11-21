@@ -4,3 +4,5 @@ __pycache__
 out.*
 trace.json
 *.egg-info
+images/
+results/

@@ -16,7 +16,8 @@ from torchvision.transforms import functional as TF
 
 
 class VGGFeatures(nn.Module):
-    poolings = {'max': nn.MaxPool2d, 'average': nn.AvgPool2d, 'l2': partial(nn.LPPool2d, 2)}
+    poolings = {'max': nn.MaxPool2d, 'average': nn.AvgPool2d,
+                'l2': partial(nn.LPPool2d, 2)}
     pooling_scales = {'max': 1., 'average': 2., 'l2': 0.78}
 
     def __init__(self, layers, pooling='max'):
@@ -30,7 +31,8 @@ class VGGFeatures(nn.Module):
 
         # The PyTorch pre-trained VGG-19 has different parameters from Simonyan et al.'s original
         # model.
-        self.model = models.vgg19(pretrained=True).features[:self.layers[-1] + 1]
+        self.model = models.vgg19(
+            pretrained=True).features[:self.layers[-1] + 1]
         self.devices = [torch.device('cpu')] * len(self.model)
 
         # Reduces edge artifacts.
@@ -74,18 +76,21 @@ class VGGFeatures(nn.Module):
             self.devices[i] = device
 
     def forward(self, input, layers=None):
-        layers = self.layers if layers is None else sorted(set(layers)) # an array of layer numbers
+        layers = self.layers if layers is None else sorted(
+            set(layers))  # an array of layer numbers
         h, w = input.shape[2:4]
 
         # check min_size to reach the set of layers (make sure the feature map doesn't shrink to 0 by 0)
-        min_size = self._get_min_size(layers) # what is this doing?
+        min_size = self._get_min_size(layers)  # what is this doing?
         if min(h, w) < min_size:
-            raise ValueError(f'Input is {h}x{w} but must be at least {min_size}x{min_size}')
+            raise ValueError(
+                f'Input is {h}x{w} but must be at least {min_size}x{min_size}')
 
         feats = {'input': input}
-        input = self.normalize(input) # normalize the input image with the mean and std of ImageNet
-        for i in range(max(layers) + 1): # put the input through each layer of the model
-            input = self.model[i](input.to(self.devices[i])) 
+        # normalize the input image with the mean and std of ImageNet
+        input = self.normalize(input)
+        for i in range(max(layers) + 1):  # put the input through each layer of the model
+            input = self.model[i](input.to(self.devices[i]))
             if i in layers:
                 feats[i] = input
         return feats
@@ -133,35 +138,46 @@ class StyleLoss(nn.Module):
         return self.loss(self.get_target(input), self.target)
 
 
-class TVLoss(nn.Module): # calculate sum of local differences on feature map??
+class TVLoss(nn.Module):  # calculate sum of local differences on feature map??
     """L2 total variation loss, as in Mahendran et al."""
+
     def forward(self, input):
-        input = F.pad(input, (0, 1, 0, 1), 'replicate') # (left,right,top,bottom)
+        # (left,right,top,bottom)
+        input = F.pad(input, (0, 1, 0, 1), 'replicate')
         x_diff = input[:, :-1, 1:] - input[:, :-1, :-1]
         y_diff = input[:, 1:, :-1] - input[:, :-1, :-1]
         return (x_diff**2 + y_diff**2).mean()
 
+
 class GradientLoss(nn.Module):
-    def __init__(self, content_image, s_mask = None, s_weight = 1):
+    def __init__(self, content_image, s_mask=None, s_weight=1):
         super().__init__()
         content_image = F.pad(content_image, (0, 1, 0, 1), 'replicate')
         # print(content_image.shape)
-        content_grayscale = 0.2989*content_image[:,0,:,:] + 0.5870*content_image[:,1,:,:] + 0.1140*content_image[:,2,:,:]
-        self.register_buffer('content_x_diff', content_grayscale[..., :-1, 1:] - content_grayscale[..., :-1, :-1])
-        self.register_buffer('content_y_diff', content_grayscale[..., 1:, :-1] - content_grayscale[..., :-1, :-1])
+        content_grayscale = 0.2989 * \
+            content_image[:, 0, :, :] + 0.5870*content_image[:,
+                                                             1, :, :] + 0.1140*content_image[:, 2, :, :]
+        self.register_buffer(
+            'content_x_diff', content_grayscale[..., :-1, 1:] - content_grayscale[..., :-1, :-1])
+        self.register_buffer(
+            'content_y_diff', content_grayscale[..., 1:, :-1] - content_grayscale[..., :-1, :-1])
         self.register_buffer('sky_mask', s_mask*(s_weight*s_weight))
         # self.register_buffer('sky_weight', s_weight)
-        
+
     def forward(self, input):
-        input = F.pad(input, (0, 1, 0, 1), 'replicate') # (left,right,top,bottom)
-        input_grayscale = 0.2989*input[:,0,:,:] + 0.5870*input[:,1,:,:] + 0.1140*input[:,2,:,:]
+        # (left,right,top,bottom)
+        input = F.pad(input, (0, 1, 0, 1), 'replicate')
+        input_grayscale = 0.2989 * \
+            input[:, 0, :, :] + 0.5870 * \
+            input[:, 1, :, :] + 0.1140*input[:, 2, :, :]
         x_diff = input_grayscale[..., :-1, 1:] - input_grayscale[..., :-1, :-1]
         y_diff = input_grayscale[..., 1:, :-1] - input_grayscale[..., :-1, :-1]
         x_dist, y_dist = x_diff-self.content_x_diff, y_diff-self.content_y_diff
         global_dist = (x_dist**2 + y_dist**2).mean()
         sky_dist = 0
         if self.sky_mask != None:
-            sky_dist = ((x_dist*self.sky_mask)**2 + (y_dist*self.sky_mask)**2).mean()
+            sky_dist = ((x_dist*self.sky_mask)**2 +
+                        (y_dist*self.sky_mask)**2).mean()
         return global_dist + sky_dist
 
 # class GradientLoss(nn.Module):
@@ -171,7 +187,7 @@ class GradientLoss(nn.Module):
 #         D = torch.tensor([[[0,-1,0],[-1,4,-1], [0,-1,0]]])
 #         self.register_buffer('content_gradmap', F.conv2d(content_grayscale, D, padding=1))
 #         self.register_buffer('sky_mask', s_mask*(s_weight*s_weight))
-        
+
 #     def forward(self, input):
 #         input_grayscale = 0.2989*input[:,0,:,:] + 0.5870*input[:,1,:,:] + 0.1140*input[:,2,:,:]
 #         D = torch.tensor([[[0,-1,0],[-1,4,-1], [0,-1,0]]])
@@ -208,7 +224,7 @@ class Scale(nn.Module):
         return self.module(*args, **kwargs) * self.scale
 
 
-class LayerApply(nn.Module): # apply the loss function to some speficied layers
+class LayerApply(nn.Module):  # apply the loss function to some speficied layers
     def __init__(self, module, layer):
         super().__init__()
         self.module = module
@@ -240,7 +256,8 @@ class EMA(nn.Module):
         self.value += (1 - self.decay) * input
 
 
-def size_to_fit(size, max_dim, scale_up=False): # warp the image to be inside [max_dim * max_dim] square
+# warp the image to be inside [max_dim * max_dim] square
+def size_to_fit(size, max_dim, scale_up=False):
     w, h = size
     if not scale_up and max(h, w) <= max_dim:
         return w, h
@@ -252,10 +269,10 @@ def size_to_fit(size, max_dim, scale_up=False): # warp the image to be inside [m
     return new_w, new_h
 
 
-def gen_scales(start, end): # return an array of scales, each greater by a factor of sqrt(2)
+def gen_scales(start, end):  # return an array of scales, each greater by a factor of sqrt(2)
     scale = end
     i = 0
-    scales = set() # create an empty set
+    scales = set()  # create an empty set
     while scale >= start:
         scales.add(scale)
         i += 1
@@ -275,10 +292,12 @@ def scale_adam(state, shape):
     for group in state['state'].values():
         exp_avg, exp_avg_sq = group['exp_avg'], group['exp_avg_sq']
         group['exp_avg'] = interpolate(exp_avg, shape, mode='bicubic')
-        group['exp_avg_sq'] = interpolate(exp_avg_sq, shape, mode='bilinear').relu_()
+        group['exp_avg_sq'] = interpolate(
+            exp_avg_sq, shape, mode='bilinear').relu_()
         if 'max_exp_avg_sq' in group:
             max_exp_avg_sq = group['max_exp_avg_sq']
-            group['max_exp_avg_sq'] = interpolate(max_exp_avg_sq, shape, mode='bilinear').relu_()
+            group['max_exp_avg_sq'] = interpolate(
+                max_exp_avg_sq, shape, mode='bilinear').relu_()
     return state
 
 
@@ -304,16 +323,18 @@ class StyleTransfer:
         self.style_layers = [1, 6, 11, 20, 29]
 
         # The weighting of the style layers differs from Gatys et al. (2015) and Johnson et al.
-        style_weights = [256, 64, 16, 4, 1] # default
+        style_weights = [256, 64, 16, 4, 1]  # default
         # style_weights = [1, 1, 1, 1, 1] # average -> trial
         weight_sum = sum(abs(w) for w in style_weights)
-        self.style_weights = [w / weight_sum for w in style_weights] # the normalized style weights for each style_layers
+        # the normalized style weights for each style_layers
+        self.style_weights = [w / weight_sum for w in style_weights]
 
         # the vgg model
-        self.model = VGGFeatures(self.style_layers + self.content_layers, pooling=pooling) 
+        self.model = VGGFeatures(
+            self.style_layers + self.content_layers, pooling=pooling)
 
         # distribute model to two devices if possible
-        if len(self.devices) == 1: 
+        if len(self.devices) == 1:
             device_plan = {0: self.devices[0]}
         elif len(self.devices) == 2:
             device_plan = {0: self.devices[0], 5: self.devices[1]}
@@ -324,7 +345,7 @@ class StyleTransfer:
     def get_image_tensor(self):
         return self.average.get().detach()[0].clamp(0, 1)
 
-    def get_image(self, image_type='pil'): # output the average image (but what's that?)
+    def get_image(self, image_type='pil'):  # output the average image (but what's that?)
         if self.average is not None:
             image = self.get_image_tensor()
             if image_type.lower() == 'pil':
@@ -353,7 +374,8 @@ class StyleTransfer:
                 callback=None):
 
         min_scale = min(min_scale, end_scale)
-        content_weights = [content_weight / len(self.content_layers)] * len(self.content_layers)
+        content_weights = [content_weight /
+                           len(self.content_layers)] * len(self.content_layers)
 
         # style weights among multiple style images
         if style_weights is None:
@@ -362,18 +384,20 @@ class StyleTransfer:
             weight_sum = sum(abs(w) for w in style_weights)
             style_weights = [weight / weight_sum for weight in style_weights]
         if len(style_images) != len(style_weights):
-            raise ValueError('style_images and style_weights must have the same length')
+            raise ValueError(
+                'style_images and style_weights must have the same length')
 
         # add TVloss -> the sum of the absolute differences for neighboring pixel-values in the result image
         tv_loss = Scale(LayerApply(TVLoss(), 'input'), tv_weight)
 
         # get a sequence of scales, from small to large
-        scales = gen_scales(min_scale, end_scale) 
+        scales = gen_scales(min_scale, end_scale)
 
         # set the initial image and load it to device
         cw, ch = size_to_fit(content_image.size, scales[0], scale_up=True)
         if init == 'content':
-            self.image = TF.to_tensor(content_image.resize((cw, ch), Image.LANCZOS))[None]
+            self.image = TF.to_tensor(
+                content_image.resize((cw, ch), Image.LANCZOS))[None]
         elif init == 'gray':
             self.image = torch.rand([1, 3, ch, cw]) / 255 + 0.5
         elif init == 'uniform':
@@ -381,10 +405,13 @@ class StyleTransfer:
         elif init == 'style_mean':
             means = []
             for i, image in enumerate(style_images):
-                means.append(TF.to_tensor(image).mean(dim=(1, 2)) * style_weights[i])
-            self.image = torch.rand([1, 3, ch, cw]) / 255 + sum(means)[None, :, None, None]
+                means.append(TF.to_tensor(image).mean(
+                    dim=(1, 2)) * style_weights[i])
+            self.image = torch.rand([1, 3, ch, cw]) / \
+                255 + sum(means)[None, :, None, None]
         else:
-            raise ValueError("init must be one of 'content', 'gray', 'uniform', 'style_mean'")
+            raise ValueError(
+                "init must be one of 'content', 'gray', 'uniform', 'style_mean'")
         self.image = self.image.to(self.devices[0])
 
         opt = None
@@ -396,54 +423,65 @@ class StyleTransfer:
 
             # resize the content image to be smaller than [scale * scale] -> target size
             cw, ch = size_to_fit(content_image.size, scale, scale_up=True)
-            content = TF.to_tensor(content_image.resize((cw, ch), Image.LANCZOS))[None]
+            content = TF.to_tensor(content_image.resize(
+                (cw, ch), Image.LANCZOS))[None]
             content = content.to(self.devices[0])
 
             # resize the mask along with the content iamge
             mask = TF.to_tensor(sky_mask.resize((cw, ch), Image.LANCZOS))[None]
             mask = mask.to(self.devices[0])
 
-            grad_loss = Scale(LayerApply(GradientLoss(content, mask, sky_weight), 'input'), grad_weight)
+            grad_loss = Scale(LayerApply(GradientLoss(
+                content, mask, sky_weight), 'input'), grad_weight)
 
             # interpolate the initial image to the target size
-            self.image = interpolate(self.image.detach(), (ch, cw), mode='bicubic').clamp(0, 1)
-            self.average = EMA(self.image, avg_decay) # averaging across the time??
+            self.image = interpolate(
+                self.image.detach(), (ch, cw), mode='bicubic').clamp(0, 1)
+            # averaging across the time??
+            self.average = EMA(self.image, avg_decay)
             self.image.requires_grad_()
 
             print(f'Processing content image ({cw}x{ch})...')
-            # add ContentLoss 
+            # add ContentLoss
             content_feats = self.model(content, layers=self.content_layers)
             content_losses = []
             for layer, weight in zip(self.content_layers, content_weights):
-                target = content_feats[layer] # target content feature
-                content_losses.append(Scale(LayerApply(ContentLoss(target), layer), weight)) # how to calculate content loss?
+                target = content_feats[layer]  # target content feature
+                # how to calculate content loss?
+                content_losses.append(
+                    Scale(LayerApply(ContentLoss(target), layer), weight))
 
             style_targets, style_losses = {}, []
-            # add StyleLoss 
+            # add StyleLoss
             for i, image in enumerate(style_images):
                 # resize the image and load it to GPU
                 if style_size is None:
-                    sw, sh = size_to_fit(image.size, round(scale * style_scale_fac))
+                    sw, sh = size_to_fit(
+                        image.size, round(scale * style_scale_fac))
                 else:
                     sw, sh = size_to_fit(image.size, style_size)
-                style = TF.to_tensor(image.resize((sw, sh), Image.LANCZOS))[None]
+                style = TF.to_tensor(image.resize(
+                    (sw, sh), Image.LANCZOS))[None]
                 style = style.to(self.devices[0])
 
                 print(f'Processing style image ({sw}x{sh})...')
                 style_feats = self.model(style, layers=self.style_layers)
                 # Take the weighted average of multiple style targets (Gram matrices).
                 for layer in self.style_layers:
-                    target = StyleLoss.get_target(style_feats[layer]) * style_weights[i]
+                    target = StyleLoss.get_target(
+                        style_feats[layer]) * style_weights[i]
                     if layer not in style_targets:
                         style_targets[layer] = target
                     else:
                         style_targets[layer] += target
             for layer, weight in zip(self.style_layers, self.style_weights):
                 target = style_targets[layer]
-                style_losses.append(Scale(LayerApply(StyleLoss(target), layer), weight))
+                style_losses.append(
+                    Scale(LayerApply(StyleLoss(target), layer), weight))
 
             # Construct a list of losses
-            crit = SumLoss([*content_losses, *style_losses, tv_loss, grad_loss])
+            crit = SumLoss(
+                [*content_losses, *style_losses, tv_loss, grad_loss])
 
             # Warm-start the Adam optimizer if this is not the first scale. (load the previous optimizer state)
             opt2 = optim.Adam([self.image], lr=step_size)
@@ -457,10 +495,11 @@ class StyleTransfer:
                 torch.cuda.empty_cache()
 
             # forward & backward propagation
-            actual_its = initial_iterations if scale == scales[0] else iterations # first scale: 1000, others: 500
+            # first scale: 1000, others: 500
+            actual_its = initial_iterations if scale == scales[0] else iterations
             for i in range(1, actual_its + 1):
                 feats = self.model(self.image)
-                loss = crit(feats) # calculate all the losses at the same time
+                loss = crit(feats)  # calculate all the losses at the same time
                 opt.zero_grad()
                 loss.backward()
                 opt.step()
@@ -477,10 +516,11 @@ class StyleTransfer:
                     gpu_ram = 0
                     for device in self.devices:
                         if device.type == 'cuda':
-                            gpu_ram = max(gpu_ram, torch.cuda.max_memory_allocated(device))
+                            gpu_ram = max(
+                                gpu_ram, torch.cuda.max_memory_allocated(device))
                     callback(STIterate(w=cw, h=ch, i=i, i_max=actual_its, loss=loss.item(),
                                        time=time.time(), gpu_ram=gpu_ram))
-            
+
             # Initialize each new scale with the previous scale's averaged iterate.
             with torch.no_grad():
                 self.image.copy_(self.average.get())

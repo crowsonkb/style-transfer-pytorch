@@ -10,11 +10,14 @@ import numpy as np
 from PIL import Image
 import torch
 from torch import optim, nn
+from torch._C import device
 from torch.nn import functional as F
 from torchvision import models, transforms
 from torchvision.transforms import functional as TF
-import HRNet
+from scipy.io import loadmat
 
+
+colors = loadmat('data/color150.mat')['colors']
 
 class VGGFeatures(nn.Module):
     poolings = {'max': nn.MaxPool2d, 'average': nn.AvgPool2d,
@@ -167,12 +170,15 @@ class GradientLoss(nn.Module):
 
     def forward(self, input):
         # (left,right,top,bottom)
+        input = input.to('cuda:0')
         input = F.pad(input, (0, 1, 0, 1), 'replicate')
         input_grayscale = 0.2989 * \
             input[:, 0, :, :] + 0.5870 * \
             input[:, 1, :, :] + 0.1140*input[:, 2, :, :]
         x_diff = input_grayscale[..., :-1, 1:] - input_grayscale[..., :-1, :-1]
         y_diff = input_grayscale[..., 1:, :-1] - input_grayscale[..., :-1, :-1]
+        # print(x_diff.get_device(), y_diff.get_device())
+        # print(self.content_x_diff.get_device(), self.content_y_diff.get_device())
         x_dist, y_dist = x_diff-self.content_x_diff, y_diff-self.content_y_diff
         global_dist = (x_dist**2 + y_dist**2).mean()
         sky_dist = 0
@@ -340,6 +346,7 @@ class StyleTransfer:
             else:
                 raise ValueError("image_type must be 'pil' or 'np_uint16'")
 
+
     def stylize(self, content_image, sky_mask, style_images, *,
                 style_weights=None,
                 content_weight: float = 0.04,
@@ -398,9 +405,6 @@ class StyleTransfer:
                 "init must be one of 'content', 'gray', 'uniform', 'style_mean'")
         self.image = self.image.to(self.devices[0])  # the original input
 
-        # style net
-        style_net = HRNet.HRNet()
-        style_net.to(self.devices[0])
 
         if self.devices[0].type == 'cuda':
             torch.cuda.empty_cache()
@@ -409,7 +413,8 @@ class StyleTransfer:
         style = style_images[0].to(self.devices[0])
         mask = sky_mask.to(self.devices[0])
 
-        grad_loss = Scale(LayerApply(GradientLoss(content, mask, sky_weight), 'input'), grad_weight)
+        grad_loss = Scale(LayerApply(GradientLoss(
+            content, mask, sky_weight), 'input'), grad_weight)
 
         # add ContentLoss
         content_feats = self.model(content, layers=self.content_layers)
@@ -417,9 +422,8 @@ class StyleTransfer:
         for layer, weight in zip(self.content_layers, content_weights):
             target = content_feats[layer]  # target content feature
             # how to calculate content loss?
-            content_losses.append(Scale(LayerApply(ContentLoss(target), layer), weight))
-        
-
+            content_losses.append(
+                Scale(LayerApply(ContentLoss(target), layer), weight))
 
         opt = None
         # Stylize the image at successively finer scales, each greater by a factor of sqrt(2).
@@ -442,7 +446,8 @@ class StyleTransfer:
                 content, mask, sky_weight), 'input'), grad_weight)
 
             # interpolate the initial image to the target size
-            self.image = interpolate(self.image.detach(), (ch, cw), mode='bicubic').clamp(0, 1)
+            self.image = interpolate(
+                self.image.detach(), (ch, cw), mode='bicubic').clamp(0, 1)
             # averaging across the time??
             self.average = EMA(self.image, avg_decay)
             self.image.requires_grad_()
@@ -487,7 +492,7 @@ class StyleTransfer:
 
             # Construct a list of losses
             crit = SumLoss(
-                [*content_losses, *style_losses, tv_loss, grad_loss])
+                [*content_losses, *style_losses, tv_loss, grad_loss], verbose=False)
 
             # Warm-start the Adam optimizer if this is not the first scale. (load the previous optimizer state)
             opt2 = optim.Adam([self.image], lr=step_size)

@@ -291,8 +291,12 @@ def train(model, st_model,
             torch.cuda.empty_cache()
 
     for batch_count in range(iterations):
-        st_model.image = TF.to_tensor(
-            batch_data.resize((cw, ch), Image.LANCZOS))[None]
+        if not torch.is_tensor(batch_data):
+            batch_data = TF.to_tensor(
+                    batch_data.resize((cw, ch), Image.LANCZOS))[None]
+        batch_data = batch_data.to('cuda:0')
+        batch_data = model(batch_data)
+        st_model.image = batch_data
         # the original input
         # interpolate the initial image to the target size
         st_model.image = interpolate(

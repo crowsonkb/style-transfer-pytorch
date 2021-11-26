@@ -293,7 +293,7 @@ def train(model, st_model,
     for batch_count in range(iterations):
         if not torch.is_tensor(batch_data):
             batch_data = TF.to_tensor(
-                    batch_data.resize((cw, ch), Image.LANCZOS))[None]
+                    content_image.resize((cw, ch), Image.LANCZOS))[None]
         batch_data = batch_data.to('cuda:0')
         batch_data = model(batch_data)
         st_model.image = batch_data
@@ -310,7 +310,7 @@ def train(model, st_model,
         opt.zero_grad()
         loss.backward()
         opt.step()
-        batch_data = st_model.get_image()
+        # batch_data = st_model.get_image()
         with torch.no_grad():
             st_model.image.clamp_(0, 1)
 

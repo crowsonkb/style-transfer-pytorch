@@ -9,7 +9,7 @@ from pathlib import Path
 import platform
 import sys
 import webbrowser
-
+import PIL
 import numpy as np
 from PIL import Image, ImageCms
 from numpy.core.fromnumeric import argsort
@@ -160,6 +160,14 @@ def PIL_to_tensor(image, device):
     image = loader(image).unsqueeze(0)
     return image.to(device, torch.float)
 
+def tensor_to_image(tensor):
+    tensor = tensor*255
+    tensor = np.array(tensor, dtype=np.uint8)
+    if np.ndim(tensor)>3:
+        assert tensor.shape[0] == 1
+        tensor = tensor[0]
+    return PIL.Image.fromarray(tensor)
+
 def train(model, st_model,
                 content_image, sky_mask, style_images, *,
                 style_weights=None,
@@ -178,7 +186,6 @@ def train(model, st_model,
                 style_size: int = None,
                 callback=None,):
     model.train()
-    batch_data = content_image
     min_scale = min(min_scale, end_scale)
     content_weights = [content_weight /
                         len(st_model.content_layers)] * len(st_model.content_layers)
@@ -291,11 +298,14 @@ def train(model, st_model,
             torch.cuda.empty_cache()
 
     for batch_count in range(iterations):
-        if not torch.is_tensor(batch_data):
-            batch_data = TF.to_tensor(
-                    content_image.resize((cw, ch), Image.LANCZOS))[None]
+        
+        # load content image
+        batch_data = TF.to_tensor(
+                content_image.resize((cw, ch), Image.LANCZOS))[None]
         batch_data = batch_data.to('cuda:0')
         batch_data = model(batch_data)
+
+        # load output of HRNet into ST
         st_model.image = batch_data
         # the original input
         # interpolate the initial image to the target size
@@ -305,16 +315,17 @@ def train(model, st_model,
         st_model.average = EMA(st_model.image, avg_decay)
         st_model.image.requires_grad_()
 
+        # extract feature
         feats = st_model.model(st_model.image)
         loss = crit(feats).cuda()  # calculate all the losses at the same time
         opt.zero_grad()
+        
+        # back
         loss.backward()
         opt.step()
-        # batch_data = st_model.get_image()
         with torch.no_grad():
             st_model.image.clamp_(0, 1)
 
-        # do averaging along time (to be investigated)
         st_model.average.update(st_model.image)
         
         if callback is not None:
@@ -326,6 +337,7 @@ def train(model, st_model,
                     callback(STIterate(w=cw, h=ch, i=batch_count+1, i_max=iterations, loss=loss.item(),
                                        time=time.time(), gpu_ram=gpu_ram))
 
+        # save model
         if ((batch_count+1)%50==0 or (batch_count+1)==iterations):
             print("========Iteration {}/{}========".format(batch_count, iterations))
             checkpoint_path = os.path.join("checkpoint", str(batch_count+1) + ".pth")

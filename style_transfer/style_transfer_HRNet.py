@@ -10,10 +10,14 @@ import numpy as np
 from PIL import Image
 import torch
 from torch import optim, nn
+from torch._C import device
 from torch.nn import functional as F
 from torchvision import models, transforms
 from torchvision.transforms import functional as TF
+from scipy.io import loadmat
 
+
+colors = loadmat('data/color150.mat')['colors']
 
 class VGGFeatures(nn.Module):
     poolings = {'max': nn.MaxPool2d, 'average': nn.AvgPool2d,
@@ -166,12 +170,15 @@ class GradientLoss(nn.Module):
 
     def forward(self, input):
         # (left,right,top,bottom)
+        input = input.to('cuda:0')
         input = F.pad(input, (0, 1, 0, 1), 'replicate')
         input_grayscale = 0.2989 * \
             input[:, 0, :, :] + 0.5870 * \
             input[:, 1, :, :] + 0.1140*input[:, 2, :, :]
         x_diff = input_grayscale[..., :-1, 1:] - input_grayscale[..., :-1, :-1]
         y_diff = input_grayscale[..., 1:, :-1] - input_grayscale[..., :-1, :-1]
+        # print(x_diff.get_device(), y_diff.get_device())
+        # print(self.content_x_diff.get_device(), self.content_y_diff.get_device())
         x_dist, y_dist = x_diff-self.content_x_diff, y_diff-self.content_y_diff
         global_dist = (x_dist**2 + y_dist**2).mean()
         sky_dist = 0
@@ -179,23 +186,6 @@ class GradientLoss(nn.Module):
             sky_dist = ((x_dist*self.sky_mask)**2 +
                         (y_dist*self.sky_mask)**2).mean()
         return global_dist + sky_dist
-
-# class GradientLoss(nn.Module):
-#     def __init__(self, content_image, s_mask = None, s_weight = 1):
-#         super().__init__()
-#         content_grayscale = 0.2989*content_image[:,0,:,:] + 0.5870*content_image[:,1,:,:] + 0.1140*content_image[:,2,:,:]
-#         D = torch.tensor([[[0,-1,0],[-1,4,-1], [0,-1,0]]])
-#         self.register_buffer('content_gradmap', F.conv2d(content_grayscale, D, padding=1))
-#         self.register_buffer('sky_mask', s_mask*(s_weight*s_weight))
-
-#     def forward(self, input):
-#         input_grayscale = 0.2989*input[:,0,:,:] + 0.5870*input[:,1,:,:] + 0.1140*input[:,2,:,:]
-#         D = torch.tensor([[[0,-1,0],[-1,4,-1], [0,-1,0]]])
-#         global_dist = self.content_gradmap - F.conv2d(input_grayscale, D, padding=1)
-#         sky_dist = 0
-#         if self.sky_mask != None:
-#             sky_dist = (global_dist*self.sky_mask).mean()
-#         return global_dist + sky_dist
 
 
 class SumLoss(nn.ModuleList):
@@ -356,11 +346,12 @@ class StyleTransfer:
             else:
                 raise ValueError("image_type must be 'pil' or 'np_uint16'")
 
+
     def stylize(self, content_image, sky_mask, style_images, *,
                 style_weights=None,
                 content_weight: float = 0.04,
                 grad_weight: float = 20,
-                sky_weight: float = 1.5,
+                sky_weight: float = 1,
                 tv_weight: float = 2.,
                 min_scale: int = 128,
                 end_scale: int = 512,
@@ -412,7 +403,27 @@ class StyleTransfer:
         else:
             raise ValueError(
                 "init must be one of 'content', 'gray', 'uniform', 'style_mean'")
-        self.image = self.image.to(self.devices[0])
+        self.image = self.image.to(self.devices[0])  # the original input
+
+
+        if self.devices[0].type == 'cuda':
+            torch.cuda.empty_cache()
+
+        content = content_image.to(self.devices[0])
+        style = style_images[0].to(self.devices[0])
+        mask = sky_mask.to(self.devices[0])
+
+        grad_loss = Scale(LayerApply(GradientLoss(
+            content, mask, sky_weight), 'input'), grad_weight)
+
+        # add ContentLoss
+        content_feats = self.model(content, layers=self.content_layers)
+        content_losses = []
+        for layer, weight in zip(self.content_layers, content_weights):
+            target = content_feats[layer]  # target content feature
+            # how to calculate content loss?
+            content_losses.append(
+                Scale(LayerApply(ContentLoss(target), layer), weight))
 
         opt = None
         # Stylize the image at successively finer scales, each greater by a factor of sqrt(2).
@@ -481,7 +492,7 @@ class StyleTransfer:
 
             # Construct a list of losses
             crit = SumLoss(
-                [*content_losses, *style_losses, tv_loss, grad_loss])
+                [*content_losses, *style_losses, tv_loss, grad_loss], verbose=False)
 
             # Warm-start the Adam optimizer if this is not the first scale. (load the previous optimizer state)
             opt2 = optim.Adam([self.image], lr=step_size)

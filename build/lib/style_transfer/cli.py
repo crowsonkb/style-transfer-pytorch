@@ -17,11 +17,7 @@ import torch
 import torch.multiprocessing as mp
 from tqdm import tqdm
 
-# from . import srgb_profile, StyleTransfer, WebInterface
-from style_transfer import STIterate, StyleTransfer
-from web_interface import WebInterface
-srgb_profile = (Path(__file__).resolve().parent / 'sRGB Profile.icc').read_bytes()
-
+from . import srgb_profile, StyleTransfer, WebInterface
 
 
 def prof_to_prof(image, src_prof, dst_prof, **kwargs):

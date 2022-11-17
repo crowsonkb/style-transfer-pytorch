@@ -1,0 +1,26 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Style transfer</title>
+    <link rel="stylesheet" href="normalize.css">
+    <link rel="stylesheet" href="main.css">
+    <script src="jquery-3.5.1.min.js"></script>
+    <script src="main.js"></script>
+</head>
+<body>
+    <h1>Style transfer</h1>
+    <img id="image" style="display: none;" src="">
+    <p class="stats">
+        Size: <span id="w">0</span>x<span id="h">0</span>,
+        iteration: <span id="i">0</span>/<span id="i-max">0</span>,
+        loss: <span id="loss">none</span><br>
+        <span class="smallstats">
+            Iterations per second: <span id="ips">0</span><br>
+            <span id="gpu-wrap" style="display: none;">
+                Max GPU memory used: <span id="gpu-ram">0</span> MB<br>
+            </span>
+            <span id="status">Connecting to the backend...</span>
+        </span>
+</body>
+</html>

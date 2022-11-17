@@ -9,10 +9,7 @@ import torch
 import torch.multiprocessing as mp
 from torchvision.transforms import functional as TF
 
-# from . import srgb_profile, STIterate
-srgb_profile = (Path(__file__).resolve().parent / 'sRGB Profile.icc').read_bytes()
-from style_transfer import STIterate, StyleTransfer
-
+from . import srgb_profile, STIterate
 
 
 @dataclass

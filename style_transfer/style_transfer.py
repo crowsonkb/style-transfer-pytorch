@@ -131,13 +131,17 @@ class StyleLoss(nn.Module):
 
 
 class TVLoss(nn.Module):
-    """L2 total variation loss, as in Mahendran et al."""
+    """L2 total variation loss (nine point stencil)."""
 
     def forward(self, input):
-        input = F.pad(input, (0, 1, 0, 1), 'replicate')
-        x_diff = input[..., :-1, 1:] - input[..., :-1, :-1]
-        y_diff = input[..., 1:, :-1] - input[..., :-1, :-1]
-        return (x_diff**2 + y_diff**2).mean()
+        input = F.pad(input, (1, 1, 1, 1), 'replicate')
+        s1, s2 = slice(1, -1), slice(2, None)
+        s3, s4 = slice(None, -1), slice(1, None)
+        d1 = (input[..., s1, s2] - input[..., s1, s1]).pow(2).mean() / 1.5
+        d2 = (input[..., s2, s1] - input[..., s1, s1]).pow(2).mean() / 1.5
+        d3 = (input[..., s4, s4] - input[..., s3, s3]).pow(2).mean() / 6
+        d4 = (input[..., s4, s3] - input[..., s3, s4]).pow(2).mean() / 6
+        return d1 + d2 + d3 + d4
 
 
 class SumLoss(nn.ModuleList):

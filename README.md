@@ -10,9 +10,7 @@ The algorithm has been modified from that in the literature by:
 
 - When using average or L2 pooling, scaling the result by an empirically derived factor to ensure that the magnitude of the result stays the same on average (Gatys et al. (2015) did not do this)
 
-- Using an approximation to the MSE loss such that its gradient L1 norm is approximately 1 for content and style losses (in order to approximate the effects of gradient normalization, which produces better visual quality)
-
-- Normalizing the Gram matrices by the number of elements in each feature map channel rather than by the total number of elements (Johnson et al.) or not normalizing (Gatys et al. (2015))
+- Using [Wasserstein-2 style loss](https://wandb.ai/johnowhitaker/style_loss_showdown/reports/An-Explanation-of-Style-Transfer-with-a-Showdown-of-Different-Techniques--VmlldzozMDIzNjg0#style-loss-#3:-%22vincent's-loss%22)
 
 - Taking an exponential moving average over the iterates to reduce iterate noise (each new scale is initialized with the previous scale's averaged iterate)
 

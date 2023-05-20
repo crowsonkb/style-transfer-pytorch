@@ -14,6 +14,8 @@ from torch.nn import functional as F
 from torchvision import models, transforms
 from torchvision.transforms import functional as TF
 
+from . import sqrtm
+
 
 class VGGFeatures(nn.Module):
     poolings = {'max': nn.MaxPool2d, 'average': nn.AvgPool2d, 'l2': partial(nn.LPPool2d, 2)}
@@ -30,7 +32,7 @@ class VGGFeatures(nn.Module):
 
         # The PyTorch pre-trained VGG-19 has different parameters from Simonyan et al.'s original
         # model.
-        self.model = models.vgg19(pretrained=True).features[:self.layers[-1] + 1]
+        self.model = models.vgg19(weights=models.VGG19_Weights.IMAGENET1K_V1).features[:self.layers[-1] + 1]
         self.devices = [torch.device('cpu')] * len(self.model)
 
         # Reduces edge artifacts.
@@ -114,6 +116,16 @@ class ContentLoss(nn.Module):
         return self.loss(input, self.target)
 
 
+class ContentLossMSE(nn.Module):
+    def __init__(self, target):
+        super().__init__()
+        self.register_buffer('target', target)
+        self.loss = nn.MSELoss()
+
+    def forward(self, input):
+        return self.loss(input, self.target)
+
+
 class StyleLoss(nn.Module):
     def __init__(self, target, eps=1e-8):
         super().__init__()
@@ -130,6 +142,32 @@ class StyleLoss(nn.Module):
         return self.loss(self.get_target(input), self.target)
 
 
+class StyleLossW2(nn.Module):
+    """Wasserstein-2 style loss."""
+
+    def __init__(self, target):
+        super().__init__()
+        self.sqrtm = partial(sqrtm.sqrtm_ns_lyap, num_iters=12)
+        self.register_buffer('mean', target[0])
+        self.register_buffer('cov', target[1])
+        self.register_buffer('cov_sqrt', self.sqrtm(target[1]))
+
+    @staticmethod
+    def get_target(target):
+        mean = target.mean([2, 3])
+        dev = target - mean[:, :, None, None]
+        cov = torch.einsum('nchw,ndhw->ncd', dev, dev) / (dev.shape[2] * dev.shape[3])
+        cov = cov + torch.eye(cov.shape[-1], device=cov.device) * 1e-4
+        return mean, cov
+
+    def forward(self, input):
+        mean, cov = self.get_target(input)
+        mean_diff = torch.mean((mean - self.mean) ** 2)
+        sqrt_term = self.sqrtm(self.cov_sqrt @ cov @ self.cov_sqrt)
+        cov_diff = torch.diagonal(self.cov + cov - 2 * sqrt_term, dim1=-2, dim2=-1).mean()
+        return mean_diff + cov_diff
+
+
 class TVLoss(nn.Module):
     """L2 total variation loss (nine point stencil)."""
 
@@ -137,11 +175,11 @@ class TVLoss(nn.Module):
         input = F.pad(input, (1, 1, 1, 1), 'replicate')
         s1, s2 = slice(1, -1), slice(2, None)
         s3, s4 = slice(None, -1), slice(1, None)
-        d1 = (input[..., s1, s2] - input[..., s1, s1]).pow(2).mean() / 1.5
-        d2 = (input[..., s2, s1] - input[..., s1, s1]).pow(2).mean() / 1.5
-        d3 = (input[..., s4, s4] - input[..., s3, s3]).pow(2).mean() / 6
-        d4 = (input[..., s4, s3] - input[..., s3, s4]).pow(2).mean() / 6
-        return d1 + d2 + d3 + d4
+        d1 = (input[..., s1, s2] - input[..., s1, s1]).pow(2).mean() / 3
+        d2 = (input[..., s2, s1] - input[..., s1, s1]).pow(2).mean() / 3
+        d3 = (input[..., s4, s4] - input[..., s3, s3]).pow(2).mean() / 12
+        d4 = (input[..., s4, s3] - input[..., s3, s4]).pow(2).mean() / 12
+        return 2 * (d1 + d2 + d3 + d4)
 
 
 class SumLoss(nn.ModuleList):
@@ -327,7 +365,7 @@ class StyleTransfer:
 
         cw, ch = size_to_fit(content_image.size, scales[0], scale_up=True)
         if init == 'content':
-            self.image = TF.to_tensor(content_image.resize((cw, ch), Image.LANCZOS))[None]
+            self.image = TF.to_tensor(content_image.resize((cw, ch), Image.BICUBIC))[None]
         elif init == 'gray':
             self.image = torch.rand([1, 3, ch, cw]) / 255 + 0.5
         elif init == 'uniform':
@@ -350,7 +388,7 @@ class StyleTransfer:
                 torch.cuda.empty_cache()
 
             cw, ch = size_to_fit(content_image.size, scale, scale_up=True)
-            content = TF.to_tensor(content_image.resize((cw, ch), Image.LANCZOS))[None]
+            content = TF.to_tensor(content_image.resize((cw, ch), Image.BICUBIC))[None]
             content = content.to(self.devices[0])
 
             self.image = interpolate(self.image.detach(), (ch, cw), mode='bicubic').clamp(0, 1)
@@ -362,7 +400,7 @@ class StyleTransfer:
             content_losses = []
             for layer, weight in zip(self.content_layers, content_weights):
                 target = content_feats[layer]
-                content_losses.append(Scale(LayerApply(ContentLoss(target), layer), weight))
+                content_losses.append(Scale(LayerApply(ContentLossMSE(target), layer), weight))
 
             style_targets, style_losses = {}, []
             for i, image in enumerate(style_images):
@@ -370,20 +408,23 @@ class StyleTransfer:
                     sw, sh = size_to_fit(image.size, round(scale * style_scale_fac))
                 else:
                     sw, sh = size_to_fit(image.size, style_size)
-                style = TF.to_tensor(image.resize((sw, sh), Image.LANCZOS))[None]
+                style = TF.to_tensor(image.resize((sw, sh), Image.BICUBIC))[None]
                 style = style.to(self.devices[0])
                 print(f'Processing style image ({sw}x{sh})...')
                 style_feats = self.model(style, layers=self.style_layers)
                 # Take the weighted average of multiple style targets (Gram matrices).
                 for layer in self.style_layers:
-                    target = StyleLoss.get_target(style_feats[layer]) * style_weights[i]
+                    target_mean, target_cov = StyleLossW2.get_target(style_feats[layer])
+                    target_mean *= style_weights[i]
+                    target_cov *= style_weights[i]
                     if layer not in style_targets:
-                        style_targets[layer] = target
+                        style_targets[layer] = target_mean, target_cov
                     else:
-                        style_targets[layer] += target
+                        style_targets[layer][0].add_(target_mean)
+                        style_targets[layer][1].add_(target_cov)
             for layer, weight in zip(self.style_layers, self.style_weights):
                 target = style_targets[layer]
-                style_losses.append(Scale(LayerApply(StyleLoss(target), layer), weight))
+                style_losses.append(Scale(LayerApply(StyleLossW2(target), layer), weight))
 
             crit = SumLoss([*content_losses, *style_losses, tv_loss])
 

@@ -142,26 +142,39 @@ class StyleLoss(nn.Module):
         return self.loss(self.get_target(input), self.target)
 
 
+def eye_like(x):
+    return torch.eye(x.shape[-2], x.shape[-1], dtype=x.dtype, device=x.device).expand_as(x)
+
+
 class StyleLossW2(nn.Module):
     """Wasserstein-2 style loss."""
 
-    def __init__(self, target):
+    def __init__(self, target, eps=1e-4):
         super().__init__()
         self.sqrtm = partial(sqrtm.sqrtm_ns_lyap, num_iters=12)
-        self.register_buffer('mean', target[0])
-        self.register_buffer('cov', target[1])
-        self.register_buffer('cov_sqrt', self.sqrtm(target[1]))
+        mean, srm = target
+        cov = self.srm_to_cov(mean, srm) + eye_like(srm) * eps
+        self.register_buffer('mean', mean)
+        self.register_buffer('cov', cov)
+        self.register_buffer('cov_sqrt', self.sqrtm(cov))
+        self.register_buffer('eps', mean.new_tensor(eps))
 
     @staticmethod
     def get_target(target):
-        mean = target.mean([2, 3])
-        dev = target - mean[:, :, None, None]
-        cov = torch.einsum('nchw,ndhw->ncd', dev, dev) / (dev.shape[2] * dev.shape[3])
-        cov = cov + torch.eye(cov.shape[-1], device=cov.device) * 1e-4
-        return mean, cov
+        """Compute the mean and second raw moment of the target activations.
+        Unlike the covariance matrix, these are valid to combine linearly."""
+        mean = target.mean([-2, -1])
+        srm = torch.einsum('...chw,...dhw->...cd', target, target) / (target.shape[-2] * target.shape[-1])
+        return mean, srm
+
+    @staticmethod
+    def srm_to_cov(mean, srm):
+        """Compute the covariance matrix from the mean and second raw moment."""
+        return srm - torch.einsum('...c,...d->...cd', mean, mean)
 
     def forward(self, input):
-        mean, cov = self.get_target(input)
+        mean, srm = self.get_target(input)
+        cov = self.srm_to_cov(mean, srm) + eye_like(srm) * self.eps
         mean_diff = torch.mean((mean - self.mean) ** 2)
         sqrt_term = self.sqrtm(self.cov_sqrt @ cov @ self.cov_sqrt)
         cov_diff = torch.diagonal(self.cov + cov - 2 * sqrt_term, dim1=-2, dim2=-1).mean()

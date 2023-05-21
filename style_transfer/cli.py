@@ -166,6 +166,9 @@ def main():
                    help='the content weight')
     p.add_argument('--tv-weight', '-tw', **arg_info('tv_weight'),
                    help='the smoothing weight')
+    p.add_argument('--optimizer', **arg_info('optimizer'),
+                   choices=['adam', 'lbfgs'],
+                   help='the optimizer to use')
     p.add_argument('--min-scale', '-ms', **arg_info('min_scale'),
                    help='the minimum scale (max image dim), in pixels')
     p.add_argument('--end-scale', '-s', type=str, default='512',
@@ -177,7 +180,7 @@ def main():
     p.add_argument('--save-every', type=int, default=50,
                    help='save the image every SAVE_EVERY iterations')
     p.add_argument('--step-size', '-ss', **arg_info('step_size'),
-                   help='the step size (learning rate)')
+                   help='the step size (learning rate) for Adam')
     p.add_argument('--avg-decay', '-ad', **arg_info('avg_decay'),
                    help='the EMA decay rate for iterate averaging')
     p.add_argument('--init', **arg_info('init'),

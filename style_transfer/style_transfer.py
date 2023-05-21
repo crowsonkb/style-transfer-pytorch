@@ -350,6 +350,7 @@ class StyleTransfer:
                 style_weights=None,
                 content_weight: float = 0.015,
                 tv_weight: float = 2.,
+                optimizer: str = 'adam',
                 min_scale: int = 128,
                 end_scale: int = 512,
                 iterations: int = 500,
@@ -453,26 +454,35 @@ class StyleTransfer:
 
             crit = SumLoss([*content_losses, *style_losses, tv_loss])
 
-            opt2 = optim.Adam([self.image], lr=step_size)
-            # Warm-start the Adam optimizer if this is not the first scale.
-            if scale != scales[0]:
-                opt_state = scale_adam(opt.state_dict(), (ch, cw))
-                opt2.load_state_dict(opt_state)
-            opt = opt2
+            if optimizer == 'adam':
+                opt2 = optim.Adam([self.image], lr=step_size, betas=(0.9, 0.99))
+                # Warm-start the Adam optimizer if this is not the first scale.
+                if scale != scales[0]:
+                    opt_state = scale_adam(opt.state_dict(), (ch, cw))
+                    opt2.load_state_dict(opt_state)
+                opt = opt2
+            elif optimizer == 'lbfgs':
+                opt = optim.LBFGS([self.image], max_iter=1, history_size=10)
+            else:
+                raise ValueError("optimizer must be one of 'adam', 'lbfgs'")
 
             if self.devices[0].type == 'cuda':
                 torch.cuda.empty_cache()
 
-            actual_its = initial_iterations if scale == scales[0] else iterations
-            for i in range(1, actual_its + 1):
+            def closure():
                 feats = self.model(self.image)
                 loss = crit(feats)
-                opt.zero_grad()
                 loss.backward()
-                opt.step()
-                # Enforce box constraints.
-                with torch.no_grad():
-                    self.image.clamp_(0, 1)
+                return loss
+
+            actual_its = initial_iterations if scale == scales[0] else iterations
+            for i in range(1, actual_its + 1):
+                opt.zero_grad()
+                loss = opt.step(closure)
+                # Enforce box constraints, but not for L-BFGS because it will mess it up.
+                if optimizer != 'lbfgs':
+                    with torch.no_grad():
+                        self.image.clamp_(0, 1)
                 self.average.update(self.image)
                 if callback is not None:
                     gpu_ram = 0

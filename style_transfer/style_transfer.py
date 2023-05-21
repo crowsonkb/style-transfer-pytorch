@@ -383,11 +383,23 @@ class StyleTransfer:
             self.image = torch.rand([1, 3, ch, cw]) / 255 + 0.5
         elif init == 'uniform':
             self.image = torch.rand([1, 3, ch, cw])
-        elif init == 'style_mean':
-            means = []
+        elif init == 'normal':
+            self.image = torch.empty([1, 3, ch, cw])
+            nn.init.trunc_normal_(self.image, mean=0.5, std=0.25, a=0, b=1)
+        elif init == 'style_stats':
+            means, variances = [], []
             for i, image in enumerate(style_images):
-                means.append(TF.to_tensor(image).mean(dim=(1, 2)) * style_weights[i])
-            self.image = torch.rand([1, 3, ch, cw]) / 255 + sum(means)[None, :, None, None]
+                my_image = TF.to_tensor(image)
+                means.append(my_image.mean(dim=(1, 2)) * style_weights[i])
+                variances.append(my_image.var(dim=(1, 2)) * style_weights[i])
+            means = sum(means)
+            variances = sum(variances)
+            channels = []
+            for mean, variance in zip(means, variances):
+                channel = torch.empty([1, 1, ch, cw])
+                nn.init.trunc_normal_(channel, mean=mean, std=variance.sqrt(), a=0, b=1)
+                channels.append(channel)
+            self.image = torch.cat(channels, dim=1)
         else:
             raise ValueError("init must be one of 'content', 'gray', 'uniform', 'style_mean'")
         self.image = self.image.to(self.devices[0])

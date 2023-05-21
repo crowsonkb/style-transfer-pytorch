@@ -181,7 +181,7 @@ def main():
     p.add_argument('--avg-decay', '-ad', **arg_info('avg_decay'),
                    help='the EMA decay rate for iterate averaging')
     p.add_argument('--init', **arg_info('init'),
-                   choices=['content', 'gray', 'uniform', 'style_mean'],
+                   choices=['content', 'gray', 'uniform', 'normal', 'style_stats'],
                    help='the initial image')
     p.add_argument('--style-scale-fac', **arg_info('style_scale_fac'),
                    help='the relative scale of the style to the content')

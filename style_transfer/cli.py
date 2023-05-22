@@ -249,7 +249,7 @@ def main():
     callback = Callback(st, args, image_type=image_type, web_interface=web_interface)
     atexit.register(callback.close)
 
-    url = f'http://{args.host}:{args.port}/'
+    url = f'http://localhost:{args.port}/'
     if args.web:
         if args.browser:
             webbrowser.get(args.browser).open(url)

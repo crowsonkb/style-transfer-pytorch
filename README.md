@@ -64,6 +64,8 @@ Input images will be converted to sRGB when loaded, and output images have the s
 
 - `--web` enables a simple web interface while the program is running that allows you to watch its progress. It runs on port 8080 by default, but you can change it with `--port`. If you just want to view the current image and refresh it manually, you can go to `/image`.
 
+- `--browser` automatically opens a new browser window (using the default system browser) and loads the web interface. 
+
 - `--devices` manually sets the PyTorch device names. It can be set to `cpu` to force it to run on the CPU on a machine with a supported GPU, or to e.g. `cuda:1` (zero indexed) to select the second CUDA GPU. Two GPUs can be specified, for instance `--devices cuda:0 cuda:1`. `style_transfer` will automatically use the first visible CUDA GPU, falling back to the CPU, if it is omitted.
 
 - `-s` (`--end-scale`) sets the maximum image dimension (height and width) of the output. A large image (e.g. 2896x2172) can take around fifteen minutes to generate on an RTX 3090 and will require nearly all of its 24GB of memory. Since both memory usage and runtime increase linearly in the number of pixels (quadratically in the value of the `--end-scale` parameter), users with less GPU memory or who do not want to wait very long are encouraged to use smaller resolutions. The default is 512.
@@ -73,6 +75,8 @@ Input images will be converted to sRGB when loaded, and output images have the s
 - `-cw` (`--content-weight`) sets the degree to which features from the content image are included in the output image. The default is 0.015.
 
 - `-tw` (`--tv-weight`) sets the strength of the smoothness prior. The default is 2.
+
+- `--save-every` saves the output image every *n* iterations (overwrites previous images). The default is 50.
 
 ## References
 
